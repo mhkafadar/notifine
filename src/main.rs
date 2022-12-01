@@ -1,30 +1,22 @@
-use teloxide::prelude::*;
+use tokio::task;
+use dotenv::dotenv;
 
-pub mod handler;
+pub mod telegram_bot;
+pub mod http_server;
 
 use crate::{
-    handler::handle,
+    telegram_bot::run_telegram_bot,
+    http_server::run_http_server,
 };
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
     pretty_env_logger::init();
-    run().await;
-}
 
-async fn run() {
-    log::info!("Starting bot...");
+    task::spawn(run_telegram_bot());
+    run_http_server().await.expect("Http server error");
 
-    let bot = Bot::from_env();
-
-    let handler = dptree::entry()
-        .branch(Update::filter_message().endpoint(handle));
-
-    Dispatcher::builder(bot, handler)
-        .enable_ctrlc_handler()
-        .build()
-        .dispatch()
-        .await;
-
-    log::info!("Closing bot... Goodbye!");
+    log::info!("Main 2");
 }
