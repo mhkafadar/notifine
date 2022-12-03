@@ -1,13 +1,10 @@
-use tokio::task;
 use dotenv::dotenv;
+use tokio::task;
 
-pub mod telegram_bot;
 pub mod http_server;
+pub mod telegram_bot;
 
-use crate::{
-    telegram_bot::run_telegram_bot,
-    http_server::run_http_server,
-};
+use crate::{http_server::run_http_server, telegram_bot::run_telegram_bot};
 
 #[tokio::main]
 async fn main() {
@@ -19,4 +16,3 @@ async fn main() {
 
     log::info!("Main 2");
 }
-

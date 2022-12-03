@@ -1,13 +1,12 @@
-use std::env;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use dotenv::dotenv;
+use std::env;
 
 pub mod models;
 pub mod schema;
 
 use self::models::*;
-
 
 pub fn establish_connection() -> PgConnection {
     dotenv().ok();
@@ -78,8 +77,8 @@ pub fn find_chat_by_id(chat_id: i32) -> Option<Chat> {
 
     let conn = &mut establish_connection();
 
-    chats.
-        filter(id.eq(chat_id))
+    chats
+        .filter(id.eq(chat_id))
         .first::<Chat>(conn)
         .optional()
         .expect("Error loading chat")

@@ -1,14 +1,14 @@
-use std::ops::Add;
 use rand::distributions::Alphanumeric;
-use rand::{Rng, thread_rng};
+use rand::{thread_rng, Rng};
+use std::ops::Add;
+use telegram_gitlab::{create_chat, create_webhook};
 use teloxide::dispatching::dialogue;
 use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::dptree::case;
 use teloxide::filter_command;
 use teloxide::prelude::*;
-use teloxide::types::{ChatMemberKind};
+use teloxide::types::{ChatMemberKind, ParseMode};
 use teloxide::utils::command::BotCommands;
-use telegram_gitlab::{create_chat, create_webhook};
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 
@@ -17,19 +17,20 @@ pub async fn run_telegram_bot() {
 
     let bot = Bot::from_env();
 
-
-    let command_handler = filter_command::<Command, _>()
-        .branch(case![Command::Start].endpoint(handle_start_command));
+    let command_handler =
+        filter_command::<Command, _>().branch(case![Command::Start].endpoint(handle_start_command));
 
     let message_handler = dptree::entry()
-        .branch(Update::filter_message()
-            .branch(command_handler)
-            .branch(case![State::ReceiveBotReview].endpoint(handle_bot_review))
-            .branch(dptree::endpoint(handle_new_message)))
+        .branch(
+            Update::filter_message()
+                .branch(command_handler)
+                .branch(case![State::ReceiveBotReview].endpoint(handle_bot_review))
+                .branch(dptree::endpoint(handle_new_message)),
+        )
         .branch(Update::filter_my_chat_member().endpoint(handle_my_chat_member_update));
 
-    let handler = dialogue::enter::<Update, InMemStorage<State>, State, _>()
-        .branch(message_handler);
+    let handler =
+        dialogue::enter::<Update, InMemStorage<State>, State, _>().branch(message_handler);
 
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![InMemStorage::<State>::new()])
@@ -38,10 +39,8 @@ pub async fn run_telegram_bot() {
         .dispatch()
         .await;
 
-
     log::info!("Closing bot... Goodbye!");
 }
-
 
 #[derive(Clone, Default)]
 pub enum State {
@@ -51,7 +50,10 @@ pub enum State {
 }
 
 #[derive(BotCommands, Clone)]
-#[command(rename_rule = "lowercase", description = "These commands are supported:")]
+#[command(
+    rename_rule = "lowercase",
+    description = "These commands are supported:"
+)]
 enum Command {
     #[command(description = "starts!")]
     Start,
@@ -59,7 +61,8 @@ enum Command {
 
 async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     log::info!("Start command received");
-    bot.send_message(msg.chat.id, "What do you think about our bot?").await?;
+    bot.send_message(msg.chat.id, "What do you think about our bot?")
+        .await?;
     dialogue.update(State::ReceiveBotReview).await.unwrap();
     Ok(())
 }
@@ -88,20 +91,34 @@ async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
 async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> ResponseResult<()> {
     let chat_id = update.chat.id.0;
 
-    log::info!("Received chat member update from {}: {:#?} {:#?}", chat_id, update.old_chat_member, update.new_chat_member);
+    log::info!(
+        "Received chat member update from {}: {:#?} {:#?}",
+        chat_id,
+        update.old_chat_member,
+        update.new_chat_member
+    );
 
     // bot joining a group or a new private chat
-    if update.old_chat_member.kind == ChatMemberKind::Left && update.new_chat_member.kind == ChatMemberKind::Member {
+    if update.old_chat_member.kind == ChatMemberKind::Left
+        && update.new_chat_member.kind == ChatMemberKind::Member
+    {
         let random_string = create_random_string();
         let chat = create_chat(chat_id.to_string().as_str(), "new_chat", &random_string);
         create_webhook(&random_string, &random_string, chat.id);
-        send_message(chat_id,
-                     "Hi add this webhook link to your gitlab project https://hi.webhook/"
-                         .to_string().add(&random_string)
-        ).await?; // TODO make url env variable
+        send_message(
+            chat_id,
+            "Hi add this webhook link to your gitlab project https://hi.webhook/"
+                .to_string()
+                .add(&random_string),
+        )
+        .await?; // TODO make url env variable
     }
 
-    log::info!("Received a chat member update from {}: {:?}", chat_id, update.new_chat_member);
+    log::info!(
+        "Received a chat member update from {}: {:?}",
+        chat_id,
+        update.new_chat_member
+    );
     Ok(())
 }
 
@@ -112,6 +129,7 @@ pub async fn send_message(chat_id: i64, message: String) -> ResponseResult<()> {
     let chat_id = ChatId(chat_id);
 
     bot.send_message(chat_id, message)
+        .parse_mode(ParseMode::Html)
         .send()
         .await?;
     Ok(())
@@ -124,4 +142,3 @@ fn create_random_string() -> String {
         .map(char::from)
         .collect()
 }
-
