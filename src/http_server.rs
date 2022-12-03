@@ -1,70 +1,92 @@
-use actix_web::{get, middleware, post, web, App, HttpResponse, HttpServer, Responder};
+use crate::webhook_handlers::issue::handle_issue_event;
+use crate::webhook_handlers::push::handle_push_event;
+use crate::webhook_handlers::tag_push::handle_tag_push_event;
+use crate::webhook_handlers::unknown_event::handle_unknown_event;
+use actix_web::{
+    get, middleware, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder,
+};
 use serde::Deserialize;
 use telegram_gitlab::{find_chat_by_id, find_webhook_by_webhook_url};
 
 #[derive(Debug, Deserialize)]
-struct GitlabEvent {
-    object_kind: String,
-    event_name: String,
-    before: String,
-    after: String,
-    r#ref: String,
-    checkout_sha: String,
-    message: Option<String>,
-    user_id: u32,
-    user_name: String,
-    user_username: String,
-    user_email: String,
-    user_avatar: String,
-    project_id: u32,
-    project: Project,
-    repository: Repository,
-    commits: Vec<Commit>,
-    total_commits_count: u32,
+pub struct GitlabEvent {
+    pub object_kind: String,
+    pub event_name: Option<String>,
+    pub r#ref: Option<String>,
+    pub checkout_sha: Option<String>,
+    pub message: Option<String>,
+    pub user_id: Option<u32>,
+    pub user_name: Option<String>,
+    pub user_username: Option<String>,
+    pub user_email: Option<String>,
+    pub user_avatar: Option<String>,
+    pub user: Option<User>,
+    pub project_id: Option<u32>,
+    pub project: Project,
+    pub repository: Repository,
+    pub commits: Option<Vec<Commit>>,
+    pub object_attributes: Option<ObjectAttributes>,
+    pub total_commits_count: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Project {
-    id: u32,
-    name: String,
-    description: String,
-    web_url: String,
-    avatar_url: Option<String>,
-    git_ssh_url: String,
-    git_http_url: String,
-    namespace: String,
-    visibility_level: u32,
-    path_with_namespace: String,
-    default_branch: String,
-    ci_config_path: Option<String>,
-    homepage: String,
-    url: String,
-    ssh_url: String,
-    http_url: String,
+pub struct User {
+    pub name: String,
+    pub username: String,
+    pub email: String,
+    pub avatar_url: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct Repository {
-    name: String,
-    url: String,
-    description: String,
-    homepage: String,
+pub struct Project {
+    pub id: u32,
+    pub name: String,
+    pub description: Option<String>,
+    pub web_url: String,
+    pub avatar_url: Option<String>,
+    pub git_ssh_url: String,
+    pub git_http_url: String,
+    pub namespace: String,
+    pub visibility_level: u32,
+    pub path_with_namespace: String,
+    pub default_branch: String,
+    pub ci_config_path: Option<String>,
+    pub homepage: String,
+    pub url: String,
+    pub ssh_url: String,
+    pub http_url: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct Commit {
-    id: String,
-    title: String,
-    message: String,
-    author: Author,
-    timestamp: String,
-    url: String,
+pub struct Repository {
+    pub name: String,
+    pub url: String,
+    pub description: Option<String>,
+    pub homepage: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct Author {
-    name: String,
-    email: String,
+pub struct Commit {
+    pub id: String,
+    pub title: String,
+    pub message: String,
+    pub author: Author,
+    pub timestamp: String,
+    pub url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ObjectAttributes {
+    pub id: u32,
+    pub title: String,
+    pub action: Option<String>,
+    pub url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Author {
+    pub name: String,
+    pub email: String,
 }
 
 pub async fn run_http_server() -> std::io::Result<()> {
@@ -95,30 +117,26 @@ async fn handle_gitlab_webhook(
     gitlab_webhook: web::Path<GitlabWebhook>,
     gitlab_event: web::Json<GitlabEvent>,
 ) -> impl Responder {
-    let branch_ref = &gitlab_event.r#ref;
-    let branch_name = branch_ref.split('/').last().unwrap();
-    let project = &gitlab_event.project;
+    log::info!("Event details: {:?}", &gitlab_event);
+    let event_name = &gitlab_event.object_kind;
 
-    // replace - with \- to avoid error in telegram markdown
-    let project_name = &project.name;
-    let project_url = &project.homepage;
+    // handle push, tag_push, issue, merge_request, note, pipeline, wiki_page, build
+    let message = match event_name.as_str() {
+        "push" => handle_push_event(&gitlab_event),
+        "tag_push" => handle_tag_push_event(&gitlab_event),
+        "issue" => handle_issue_event(&gitlab_event),
+        // "merge_request" => handle_merge_request_event(), // TODO implement
+        // "note" => handle_note_event(), // TODO implement
+        // "pipeline" => handle_pipeline_event(), // TODO implement
+        // "wiki_page" => handle_wiki_page_event(), // TODO implement
+        // "build" => handle_build_event(), // TODO implement
+        // TODO implement work_item (issue task list)
+        _ => handle_unknown_event(&gitlab_event),
+    };
 
-    // create a paragprah with all commits, include committer name, commit message and commit url
-    let mut commit_paragraph = String::new();
-    for commit in &gitlab_event.commits {
-        log::info!("Commit: {}", commit.message);
-        log::info!("Commit url: {}", commit.url);
-        log::info!("Commit author: {}", commit.author.name);
-
-        let commit_url = &commit.url;
-        let commit_message = &commit.message.trim_end();
-        let commit_author_name = &commit.author.name;
-
-        // commit_paragraph.push_str(&format!("{}: [{}]({}) to [{}:{}]({})\n", commit_author_name, commit_message, commit_url, project_name, branch_name, project_url));
-        commit_paragraph.push_str(&format!(
-            "{}: <a href=\"{}\">{}</a> to <a href=\"{}\">{}:{}</a>\n",
-            commit_author_name, commit_url, commit_message, project_url, project_name, branch_name
-        ));
+    // if message is empty, then we don't need to send it to telegram
+    if message.is_empty() {
+        return HttpResponse::Ok();
     }
 
     let webhook_url = &gitlab_webhook.webhook_url;
@@ -148,11 +166,11 @@ async fn handle_gitlab_webhook(
         chat.telegram_id
             .parse::<i64>()
             .expect("CHAT_ID must be an integer"),
-        commit_paragraph,
+        message,
     )
     .await
     .unwrap();
 
     log::info!("bot sent message");
-    HttpResponse::Ok() // <- send response
+    HttpResponse::Ok() //
 }

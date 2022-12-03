@@ -3,6 +3,7 @@ use tokio::task;
 
 pub mod http_server;
 pub mod telegram_bot;
+pub mod webhook_handlers;
 
 use crate::{http_server::run_http_server, telegram_bot::run_telegram_bot};
 
