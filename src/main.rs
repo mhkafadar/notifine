@@ -12,7 +12,6 @@ use crate::{
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-
     pretty_env_logger::init();
 
     task::spawn(run_telegram_bot());
@@ -20,3 +19,4 @@ async fn main() {
 
     log::info!("Main 2");
 }
+
