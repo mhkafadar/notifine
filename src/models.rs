@@ -1,7 +1,6 @@
+use crate::schema::{chats, webhooks};
 use diesel::data_types::PgTimestamp;
 use diesel::prelude::*;
-use crate::schema::{webhooks, chats};
-
 
 #[derive(Queryable, Identifiable)]
 pub struct Chat {
@@ -38,4 +37,3 @@ pub struct NewWebhook<'a> {
     pub webhook_url: &'a str,
     pub chat_id: Option<i32>,
 }
-

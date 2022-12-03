@@ -1,5 +1,5 @@
-use actix_web::{get, post, App, HttpResponse, HttpServer, middleware, Responder, web};
-use serde::{Deserialize};
+use actix_web::{get, middleware, post, web, App, HttpResponse, HttpServer, Responder};
+use serde::Deserialize;
 use telegram_gitlab::{find_chat_by_id, find_webhook_by_webhook_url};
 
 #[derive(Debug, Deserialize)]
@@ -54,9 +54,17 @@ struct Repository {
 #[derive(Debug, Deserialize)]
 struct Commit {
     id: String,
+    title: String,
     message: String,
+    author: Author,
     timestamp: String,
     url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Author {
+    name: String,
+    email: String,
 }
 
 pub async fn run_http_server() -> std::io::Result<()> {
@@ -66,9 +74,9 @@ pub async fn run_http_server() -> std::io::Result<()> {
             .service(health)
             .service(handle_gitlab_webhook)
     })
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
 
 #[get("/health")]
@@ -83,12 +91,35 @@ struct GitlabWebhook {
 }
 
 #[post("/gitlab/{webhook_url}")]
-async fn handle_gitlab_webhook(gitlab_webhook: web::Path<GitlabWebhook>, gitlab_event: web::Json<GitlabEvent>) -> impl Responder {
+async fn handle_gitlab_webhook(
+    gitlab_webhook: web::Path<GitlabWebhook>,
+    gitlab_event: web::Json<GitlabEvent>,
+) -> impl Responder {
     let branch_ref = &gitlab_event.r#ref;
     let branch_name = branch_ref.split('/').last().unwrap();
-    let project_name = &gitlab_event.project.name;
-    let commit_message = &gitlab_event.commits[0].message;
-    let commit_url = &gitlab_event.commits[0].url;
+    let project = &gitlab_event.project;
+
+    // replace - with \- to avoid error in telegram markdown
+    let project_name = &project.name;
+    let project_url = &project.homepage;
+
+    // create a paragprah with all commits, include committer name, commit message and commit url
+    let mut commit_paragraph = String::new();
+    for commit in &gitlab_event.commits {
+        log::info!("Commit: {}", commit.message);
+        log::info!("Commit url: {}", commit.url);
+        log::info!("Commit author: {}", commit.author.name);
+
+        let commit_url = &commit.url;
+        let commit_message = &commit.message.trim_end();
+        let commit_author_name = &commit.author.name;
+
+        // commit_paragraph.push_str(&format!("{}: [{}]({}) to [{}:{}]({})\n", commit_author_name, commit_message, commit_url, project_name, branch_name, project_url));
+        commit_paragraph.push_str(&format!(
+            "{}: <a href=\"{}\">{}</a> to <a href=\"{}\">{}:{}</a>\n",
+            commit_author_name, commit_url, commit_message, project_url, project_name, branch_name
+        ));
+    }
 
     let webhook_url = &gitlab_webhook.webhook_url;
     log::info!("webhook_url: {}", webhook_url);
@@ -113,11 +144,15 @@ async fn handle_gitlab_webhook(gitlab_webhook: web::Path<GitlabWebhook>, gitlab_
     }
     let chat = chat.unwrap();
 
-    let message = format!("{}: {} - {} - {}", project_name, branch_name, commit_message, commit_url);
-
-    crate::telegram_bot::send_message(chat.telegram_id.parse::<i64>().expect("CHAT_ID must be an integer"), message).await.unwrap();
+    crate::telegram_bot::send_message(
+        chat.telegram_id
+            .parse::<i64>()
+            .expect("CHAT_ID must be an integer"),
+        commit_paragraph,
+    )
+    .await
+    .unwrap();
 
     log::info!("bot sent message");
     HttpResponse::Ok() // <- send response
 }
-
