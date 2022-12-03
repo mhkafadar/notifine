@@ -8,7 +8,7 @@ use teloxide::filter_command;
 use teloxide::prelude::*;
 use teloxide::types::{ChatMemberKind};
 use teloxide::utils::command::BotCommands;
-use telegram_gitlab::create_webhook;
+use telegram_gitlab::{create_chat, create_webhook};
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 
@@ -93,11 +93,12 @@ async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> Re
     // bot joining a group or a new private chat
     if update.old_chat_member.kind == ChatMemberKind::Left && update.new_chat_member.kind == ChatMemberKind::Member {
         let random_string = create_random_string();
-        create_webhook(&random_string, &random_string);
+        let chat = create_chat(chat_id.to_string().as_str(), "new_chat", &random_string);
+        create_webhook(&random_string, &random_string, chat.id);
         send_message(chat_id,
                      "Hi add this webhook link to your gitlab project https://hi.webhook/"
                          .to_string().add(&random_string)
-        ).await?; // TODO send webhook details
+        ).await?; // TODO make url env variable
     }
 
     log::info!("Received a chat member update from {}: {:?}", chat_id, update.new_chat_member);
