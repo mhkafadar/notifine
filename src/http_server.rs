@@ -1,4 +1,5 @@
 use crate::webhook_handlers::issue::handle_issue_event;
+use crate::webhook_handlers::note::handle_note_event;
 use crate::webhook_handlers::push::handle_push_event;
 use crate::webhook_handlers::tag_push::handle_tag_push_event;
 use crate::webhook_handlers::unknown_event::handle_unknown_event;
@@ -78,7 +79,7 @@ pub struct Commit {
 #[derive(Debug, Deserialize)]
 pub struct ObjectAttributes {
     pub id: u32,
-    pub title: String,
+    pub title: Option<String>,
     pub action: Option<String>,
     pub url: String,
 }
@@ -126,7 +127,7 @@ async fn handle_gitlab_webhook(
         "tag_push" => handle_tag_push_event(&gitlab_event),
         "issue" => handle_issue_event(&gitlab_event),
         // "merge_request" => handle_merge_request_event(), // TODO implement
-        // "note" => handle_note_event(), // TODO implement
+        "note" => handle_note_event(&gitlab_event), // TODO implement
         // "pipeline" => handle_pipeline_event(), // TODO implement
         // "wiki_page" => handle_wiki_page_event(), // TODO implement
         // "build" => handle_build_event(), // TODO implement

@@ -7,7 +7,7 @@ pub fn handle_issue_event(gitlab_event: &GitlabEvent) -> String {
     let user_name = &gitlab_event.user.as_ref().unwrap().name;
     let issue = &gitlab_event.object_attributes.as_ref().unwrap();
     let issue_url = &issue.url;
-    let issue_title = &issue.title;
+    let issue_title = &issue.title.as_ref().unwrap();
 
     if issue.action.is_none() {
         return "".to_string();
@@ -15,6 +15,7 @@ pub fn handle_issue_event(gitlab_event: &GitlabEvent) -> String {
 
     let issue_action = &issue.action.as_ref().unwrap();
 
+    // TODO handle open+ed close+d grammar
     format!(
         "<b>{}</b> {} issue <a href=\"{}\">{}</a> on <a href=\"{}\">{}</a>\n",
         user_name, issue_action, issue_url, issue_title, project_url, project_name
