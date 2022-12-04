@@ -1,0 +1,7 @@
+title: notifine
+description: Bots for Telegram. Get notifications on new events like new commits, pipelines, etc.
+show_downloads: false
+google_analytics:
+remote_theme: pages-themes/cayman@v0.2.0
+plugins:
+  - jekyll-remote-theme
