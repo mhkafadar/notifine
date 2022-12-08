@@ -97,7 +97,7 @@ pub async fn run_http_server() -> std::io::Result<()> {
             .service(health)
             .service(handle_gitlab_webhook)
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("0.0.0.0", 8080))?
     .run()
     .await
 }
