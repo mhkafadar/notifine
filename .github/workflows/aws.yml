@@ -5,12 +5,12 @@ on:
     branches: [ "main" ]
 
 env:
-  ECR_REPOSITORY: {{ secrets.MY_ECR_REPOSITORY }}
-  ECS_SERVICE: {{ secrets.MY_ECS_SERVICE }}
+  ECR_REPOSITORY: ${{ secrets.MY_ECR_REPOSITORY }}
+  ECS_SERVICE: ${{ secrets.MY_ECS_SERVICE }}
   ECS_CLUSTER: MY_ECS_CLUSTER
-  ECS_TASK_DEFINITION: {{ secrets.MY_ECS_TASK_DEFINITION }}
+  ECS_TASK_DEFINITION: ${{ secrets.MY_ECS_TASK_DEFINITION }}
 
-  CONTAINER_NAME: {{ secrets.MY_CONTAINER_NAME }}
+  CONTAINER_NAME: ${{ secrets.MY_CONTAINER_NAME }}
 
 
 permissions:
