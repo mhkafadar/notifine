@@ -1019,6 +1019,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c96aba5aa877601bb3f6dd6a63a969e1f82e60646e81e71b14496995e9853c91"
 
 [[package]]
+name = "notifine"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "diesel",
+ "dotenv",
+ "log",
+ "pretty_env_logger",
+ "rand",
+ "serde",
+ "teloxide",
+ "tokio",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1545,21 +1560,6 @@ name = "takecell"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20f34339676cdcab560c9a82300c4c2581f68b9369aedf0fae86f2ff9565ff3e"
-
-[[package]]
-name = "telegram-gitlab"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "diesel",
- "dotenv",
- "log",
- "pretty_env_logger",
- "rand",
- "serde",
- "teloxide",
- "tokio",
-]
 
 [[package]]
 name = "teloxide"
