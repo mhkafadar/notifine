@@ -6,8 +6,8 @@ use crate::webhook_handlers::unknown_event::handle_unknown_event;
 use actix_web::{
     get, middleware, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
+use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use serde::Deserialize;
-use telegram_gitlab::{find_chat_by_id, find_webhook_by_webhook_url};
 
 #[derive(Debug, Deserialize)]
 pub struct GitlabEvent {

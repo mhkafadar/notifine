@@ -1,7 +1,7 @@
+use notifine::{create_chat, create_webhook};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::ops::Add;
-use telegram_gitlab::{create_chat, create_webhook};
 use teloxide::dispatching::dialogue;
 use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::dptree::case;
