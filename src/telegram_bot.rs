@@ -1,6 +1,8 @@
+use dotenv::dotenv;
 use notifine::{create_chat, create_webhook};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
+use std::env;
 use std::ops::Add;
 use teloxide::dispatching::dialogue;
 use teloxide::dispatching::dialogue::InMemStorage;
@@ -59,11 +61,38 @@ enum Command {
     Start,
 }
 
+// async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+//     log::info!("Start command received");
+//     bot.send_message(msg.chat.id, "What do you think about our bot?")
+//         .await?;
+//     dialogue.update(State::ReceiveBotReview).await.unwrap();
+//     Ok(())
+// }
+
 async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     log::info!("Start command received");
-    bot.send_message(msg.chat.id, "What do you think about our bot?")
-        .await?;
-    dialogue.update(State::ReceiveBotReview).await.unwrap();
+    let random_string = create_random_string();
+    let chat = create_chat(msg.chat.id.to_string().as_str(), "new_chat", &random_string);
+    create_webhook(&random_string, &random_string, chat.id);
+    dotenv().ok();
+
+    send_message(
+        msg.chat
+            .id
+            .to_string()
+            .parse::<i64>()
+            .expect("Error parsing chat id"),
+        format!(
+            "Hi there! \
+                      To setup notifications for \
+                      this chat your GitLab project(repo), \
+                      open Settings -> Webhooks and add this \
+                      URL: {}/gitlab/{}",
+            env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
+            random_string
+        ),
+    )
+    .await?;
     Ok(())
 }
 
@@ -105,13 +134,21 @@ async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> Re
         let random_string = create_random_string();
         let chat = create_chat(chat_id.to_string().as_str(), "new_chat", &random_string);
         create_webhook(&random_string, &random_string, chat.id);
+        dotenv().ok();
+
         send_message(
             chat_id,
-            "Hi add this webhook link to your gitlab project https://hi.webhook/"
-                .to_string()
-                .add(&random_string),
+            format!(
+                "Hi there!\
+                      To setup notifications for \
+                      this chat your GitLab project(repo), \
+                      open Settings -> Webhooks and add this \
+                      URL: {}/gitlab/{}",
+                env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
+                random_string
+            ),
         )
-        .await?; // TODO make url env variable
+        .await?;
     }
 
     log::info!(
