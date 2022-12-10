@@ -1,7 +1,6 @@
 use dotenv::dotenv;
-use notifine::{create_chat, create_webhook};
+use notifine::{create_chat, create_webhook, get_webhook_url_or_create};
 use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 use std::env;
 use std::ops::Add;
 use teloxide::dispatching::dialogue;
@@ -71,28 +70,15 @@ enum Command {
 
 async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     log::info!("Start command received");
-    let random_string = create_random_string();
-    let chat = create_chat(msg.chat.id.to_string().as_str(), "new_chat", &random_string);
-    create_webhook(&random_string, &random_string, chat.id);
-    dotenv().ok();
-
-    send_message(
+    handle_new_chat_and_start_command(
         msg.chat
             .id
             .to_string()
             .parse::<i64>()
             .expect("Error parsing chat id"),
-        format!(
-            "Hi there! \
-                      To setup notifications for \
-                      this chat your GitLab project(repo), \
-                      open Settings -> Webhooks and add this \
-                      URL: {}/gitlab/{}",
-            env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
-            random_string
-        ),
     )
     .await?;
+
     Ok(())
 }
 
@@ -131,24 +117,7 @@ async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> Re
     if update.old_chat_member.kind == ChatMemberKind::Left
         && update.new_chat_member.kind == ChatMemberKind::Member
     {
-        let random_string = create_random_string();
-        let chat = create_chat(chat_id.to_string().as_str(), "new_chat", &random_string);
-        create_webhook(&random_string, &random_string, chat.id);
-        dotenv().ok();
-
-        send_message(
-            chat_id,
-            format!(
-                "Hi there!\
-                      To setup notifications for \
-                      this chat your GitLab project(repo), \
-                      open Settings -> Webhooks and add this \
-                      URL: {}/gitlab/{}",
-                env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
-                random_string
-            ),
-        )
-        .await?;
+        handle_new_chat_and_start_command(chat_id).await?
     }
 
     log::info!(
@@ -172,10 +141,29 @@ pub async fn send_message(chat_id: i64, message: String) -> ResponseResult<()> {
     Ok(())
 }
 
-fn create_random_string() -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(8)
-        .map(char::from)
-        .collect()
+async fn handle_new_chat_and_start_command(telegram_chat_id: i64) -> ResponseResult<()> {
+    let webhook_url = get_webhook_url_or_create(telegram_chat_id as i32);
+
+    let message = if webhook_url.is_empty() {
+        log::error!("Error creating or getting webhook: {:?}", webhook_url);
+        "Hi there!\
+                      Our bot is curently has some problems \
+                      Please create a github issue here: \
+                      https://github.com/mhkafadar/notifine/issues/new"
+            .to_string()
+    } else {
+        format!(
+            "Hi there!\
+                      To setup notifications for \
+                      this chat your GitLab project(repo), \
+                      open Settings -> Webhooks and add this \
+                      URL: {}/gitlab/{}",
+            env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
+            webhook_url
+        )
+    };
+
+    send_message(telegram_chat_id, message).await?;
+
+    Ok(())
 }
