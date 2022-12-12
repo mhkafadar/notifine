@@ -153,7 +153,7 @@ async fn handle_new_chat_and_start_command(telegram_chat_id: i64) -> ResponseRes
             .to_string()
     } else {
         format!(
-            "Hi there!\
+            "Hi there! \
                       To setup notifications for \
                       this chat your GitLab project(repo), \
                       open Settings -> Webhooks and add this \
