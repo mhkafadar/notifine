@@ -39,7 +39,7 @@ jobs:
         # Build a docker container and
         # push it to ECR so that it can
         # be deployed to ECS.
-        docker build --build-arg WEBHOOK_BASE_URL=$WEBHOOK_BASE_URL -t $ECR_REGISTRY/$ECR_REPOSITORY .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY" >> $GITHUB_OUTPUT
 
