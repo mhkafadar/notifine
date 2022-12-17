@@ -7,7 +7,7 @@ pub fn handle_push_event(gitlab_event: &GitlabEvent) -> String {
 
     // replace - with \- to avoid error in telegram markdown
     let project_name = &project.name;
-    let project_url = &project.homepage;
+    let project_url = &project.homepage.as_ref().unwrap();
 
     let mut commit_paragraph = String::new();
 

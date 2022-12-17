@@ -3,10 +3,10 @@ use crate::http_server::GitlabEvent;
 pub fn handle_note_event(gitlab_event: &GitlabEvent) -> String {
     let project = &gitlab_event.project;
     let project_name = &project.name;
-    let project_url = &project.homepage;
+    let project_url = &project.homepage.as_ref().unwrap();
     let user_name = &gitlab_event.user.as_ref().unwrap().name;
     let note = &gitlab_event.object_attributes.as_ref().unwrap();
-    let note_url = &note.url;
+    let note_url = &note.url.as_ref().unwrap();
 
     // TODO handle comments other than issue comments
     format!(

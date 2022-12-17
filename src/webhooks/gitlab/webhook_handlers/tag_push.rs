@@ -7,7 +7,7 @@ pub fn handle_tag_push_event(gitlab_event: &GitlabEvent) -> String {
 
     // replace - with \- to avoid error in telegram markdown
     let project_name = &project.name;
-    let project_url = &project.homepage;
+    let project_url = &project.homepage.as_ref().unwrap();
     let tag_url = &format!("{}/-/tree/{}", project_url, tag_name);
     let user_name = &gitlab_event.user_name.as_ref().unwrap();
 
