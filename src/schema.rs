@@ -10,6 +10,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    trello_tokens (id) {
+        id -> Int4,
+        access_token -> Nullable<Varchar>,
+        access_token_secret -> Nullable<Varchar>,
+        token_key -> Nullable<Varchar>,
+        token_secret -> Nullable<Varchar>,
+        telegram_user_id -> Nullable<Varchar>,
+    }
+}
+
+diesel::table! {
     webhooks (id) {
         id -> Int4,
         name -> Varchar,
@@ -22,4 +33,8 @@ diesel::table! {
 
 diesel::joinable!(webhooks -> chats (chat_id));
 
-diesel::allow_tables_to_appear_in_same_query!(chats, webhooks,);
+diesel::allow_tables_to_appear_in_same_query!(
+    chats,
+    trello_tokens,
+    webhooks,
+);

@@ -1,4 +1,4 @@
-use crate::schema::{chats, webhooks};
+use crate::schema::{chats, trello_tokens, webhooks};
 use diesel::data_types::PgTimestamp;
 use diesel::prelude::*;
 
@@ -36,4 +36,25 @@ pub struct NewWebhook<'a> {
     pub name: &'a str,
     pub webhook_url: &'a str,
     pub chat_id: Option<i32>,
+}
+
+#[derive(Queryable, Identifiable)]
+#[diesel(table_name = trello_tokens)]
+pub struct TrelloToken {
+    pub id: i32,
+    pub access_token: Option<String>,
+    pub access_token_secret: Option<String>,
+    pub token_key: Option<String>,
+    pub token_secret: Option<String>,
+    pub telegram_user_id: Option<String>,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = trello_tokens)]
+pub struct NewTrelloToken<'a> {
+    pub access_token: Option<&'a str>,
+    pub access_token_secret: Option<&'a str>,
+    pub token_key: Option<&'a str>,
+    pub token_secret: Option<&'a str>,
+    pub telegram_user_id: Option<&'a str>,
 }
