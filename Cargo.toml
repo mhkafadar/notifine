@@ -15,3 +15,8 @@ serde = { version = "1.0", features = ["derive"] }
 dotenv = "0.15.0"
 diesel = { version = "2.0.0", features = ["postgres"] }
 rand = "0.8.5"
+reqwest = { version = "0.11.13", features = ["json", "blocking"] }
+reqwest-oauth1 = "0.2.3"
+oauth = { version = "0.6", package = "oauth1-request" }
+ureq = { version="2.5.0", features = ["json"] }
+url = "2.3.1"
