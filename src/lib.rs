@@ -1,4 +1,3 @@
-use crate::schema::webhooks::dsl::webhooks;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use dotenv::dotenv;
@@ -123,6 +122,71 @@ pub fn find_webhook_by_chat_id(chat_id: i32) -> Option<Webhook> {
         .first::<Webhook>(conn)
         .optional()
         .expect("Error loading webhook")
+}
+
+pub fn create_trello_token(
+    new_token_key: &str,
+    new_token_secret: &str,
+    new_telegram_user_id: &str,
+) -> TrelloToken {
+    use self::schema::trello_tokens;
+
+    let conn = &mut establish_connection();
+
+    let new_trello_token = NewTrelloToken {
+        token_key: Some(new_token_key),
+        token_secret: Some(new_token_secret),
+        access_token: None,
+        access_token_secret: None,
+        telegram_user_id: Some(new_telegram_user_id),
+    };
+
+    diesel::insert_into(trello_tokens::table)
+        .values(&new_trello_token)
+        .get_result(conn)
+        .expect("Error saving new trello token")
+}
+
+pub fn find_trello_token_by_token_key(token_key: &str) -> Option<TrelloToken> {
+    use schema::trello_tokens;
+
+    let conn = &mut establish_connection();
+
+    trello_tokens::dsl::trello_tokens
+        .filter(trello_tokens::dsl::token_key.eq(token_key))
+        .first::<TrelloToken>(conn)
+        .optional()
+        .expect("Error loading trello token")
+}
+
+pub fn find_trello_token_by_telegram_user_id(telegram_user_id: &str) -> Option<TrelloToken> {
+    use schema::trello_tokens;
+
+    let conn = &mut establish_connection();
+
+    trello_tokens::dsl::trello_tokens
+        .filter(trello_tokens::dsl::telegram_user_id.eq(telegram_user_id))
+        .first::<TrelloToken>(conn)
+        .optional()
+        .expect("Error loading trello token")
+}
+
+pub fn update_trello_token_access_token(
+    trello_token: &TrelloToken,
+    access_token: &str,
+    access_token_secret: &str,
+) -> TrelloToken {
+    use self::schema::trello_tokens;
+
+    let conn = &mut establish_connection();
+
+    diesel::update(trello_token)
+        .set((
+            trello_tokens::access_token.eq(access_token),
+            trello_tokens::access_token_secret.eq(access_token_secret),
+        ))
+        .get_result(conn)
+        .expect("Error updating trello token")
 }
 
 fn create_random_string() -> String {
