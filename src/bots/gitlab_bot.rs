@@ -1,4 +1,4 @@
-use notifine::{create_webhook, get_webhook_url_or_create};
+use notifine::get_webhook_url_or_create;
 use std::env;
 use teloxide::dispatching::dialogue;
 use teloxide::dispatching::dialogue::InMemStorage;
@@ -13,8 +13,7 @@ type MyDialogue = Dialogue<State, InMemStorage<State>>;
 pub async fn run_gitlab_bot() {
     log::info!("Starting bot...");
 
-    let bot =
-        Bot::new(env::var("GITLAB_TELOXIDE_TOKEN").expect("GITLAB_TELOXIDE_TOKEN must be set"));
+    let bot = create_new_bot();
 
     let command_handler =
         filter_command::<Command, _>().branch(case![Command::Start].endpoint(handle_start_command));
@@ -126,10 +125,9 @@ async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> Re
     Ok(())
 }
 
-pub async fn send_message(chat_id: i64, message: String) -> ResponseResult<()> {
+pub async fn send_message_gitlab(chat_id: i64, message: String) -> ResponseResult<()> {
     log::info!("Sending message to {}: {}", chat_id, message);
-    let bot =
-        Bot::new(env::var("GITLAB_TELOXIDE_TOKEN").expect("GITLAB_TELOXIDE_TOKEN must be set"));
+    let bot = create_new_bot();
 
     let chat_id = ChatId(chat_id);
 
@@ -162,7 +160,11 @@ async fn handle_new_chat_and_start_command(telegram_chat_id: i64) -> ResponseRes
         )
     };
 
-    send_message(telegram_chat_id, message).await?;
+    send_message_gitlab(telegram_chat_id, message).await?;
 
     Ok(())
+}
+
+fn create_new_bot() -> Bot {
+    Bot::new(env::var("GITLAB_TELOXIDE_TOKEN").expect("GITLAB_TELOXIDE_TOKEN must be set"))
 }

@@ -1,4 +1,4 @@
-use crate::http_server::GitlabEvent;
+use crate::webhooks::gitlab::http_server::GitlabEvent;
 
 pub fn handle_unknown_event(gitlab_event: &GitlabEvent) -> String {
     log::info!("Unknown event");
