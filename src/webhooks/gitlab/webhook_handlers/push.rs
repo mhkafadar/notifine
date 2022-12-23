@@ -1,4 +1,4 @@
-use crate::http_server::GitlabEvent;
+use crate::webhooks::gitlab::http_server::GitlabEvent;
 
 pub fn handle_push_event(gitlab_event: &GitlabEvent) -> String {
     let branch_ref = &gitlab_event.r#ref.as_ref().unwrap();
