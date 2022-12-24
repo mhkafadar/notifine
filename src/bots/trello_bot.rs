@@ -191,7 +191,7 @@ async fn handle_login_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> R
 
     let message = format!(
         "https://trello.com/1/OAuthAuthorizeToken\
-                ?expiration=never&name=degusuk&scope=read%2Cwrite&\
+                ?expiration=never&name=Notifine&scope=read%2Cwrite&\
                 oauth_token={oauth_token}"
     );
 
