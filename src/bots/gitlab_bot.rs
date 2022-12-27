@@ -141,7 +141,7 @@ pub async fn send_message_gitlab(chat_id: i64, message: String) -> ResponseResul
 async fn handle_new_chat_and_start_command(telegram_chat_id: i64) -> ResponseResult<()> {
     let webhook_url = get_webhook_url_or_create(telegram_chat_id as i32);
 
-    let message = if webhook_url.is_empty() {
+    let message = if webhook_url.0.is_empty() {
         log::error!("Error creating or getting webhook: {:?}", webhook_url);
         "Hi there!\
                       Our bot is curently has some problems \
@@ -156,11 +156,23 @@ async fn handle_new_chat_and_start_command(telegram_chat_id: i64) -> ResponseRes
                       open Settings -> Webhooks and add this \
                       URL: {}/gitlab/{}",
             env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
-            webhook_url
+            webhook_url.0
         )
     };
 
     send_message_gitlab(telegram_chat_id, message).await?;
+
+    if webhook_url.1 {
+        // send message to admin on telegram and inform new install
+        send_message_gitlab(
+            env::var("TELEGRAM_ADMIN_CHAT_ID")
+                .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
+                .parse::<i64>()
+                .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID"),
+            format!("New gitlab webhook added: {telegram_chat_id}"),
+        )
+        .await?;
+    }
 
     Ok(())
 }
