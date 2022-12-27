@@ -35,7 +35,7 @@ pub fn create_webhook(webhook_url: &str, name: &str, chat_id: i32) -> Webhook {
         .expect("Error saving new webhook")
 }
 
-pub fn get_webhook_url_or_create(telegram_chat_id: i32) -> String {
+pub fn get_webhook_url_or_create(telegram_chat_id: i32) -> (String, bool) {
     // find webhook by chat_id or create new one
     use self::schema::chats;
 
@@ -49,14 +49,14 @@ pub fn get_webhook_url_or_create(telegram_chat_id: i32) -> String {
 
     if let Some(chat) = result {
         let webhook = find_webhook_by_chat_id(chat.id);
-        webhook.expect("Error loading webhook").webhook_url
+        (webhook.expect("Error loading webhook").webhook_url, false)
     } else {
         let random_string = create_random_string();
         let name = "new_chat";
         let new_chat = create_chat(&telegram_chat_id.to_string(), name, &random_string);
         let new_webhook = create_webhook(&random_string, name, new_chat.id);
 
-        new_webhook.webhook_url
+        (new_webhook.webhook_url, true)
     }
 }
 

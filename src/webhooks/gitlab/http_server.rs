@@ -6,6 +6,7 @@ use crate::webhooks::gitlab::webhook_handlers::{
 use actix_web::{post, web, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use serde::Deserialize;
+use std::env;
 
 #[derive(Debug, Deserialize)]
 pub struct GitlabEvent {
@@ -150,6 +151,17 @@ pub async fn handle_gitlab_webhook(
             .parse::<i64>()
             .expect("CHAT_ID must be an integer"),
         message,
+    )
+    .await
+    .unwrap();
+
+    // send message to telegram admin
+    send_message_gitlab(
+        env::var("TELEGRAM_ADMIN_CHAT_ID")
+            .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
+            .parse::<i64>()
+            .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID"),
+        format!("Event: {event_name}, Chat id: {chat_id}"),
     )
     .await
     .unwrap();
