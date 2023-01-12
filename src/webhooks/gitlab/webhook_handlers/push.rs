@@ -7,7 +7,9 @@ pub fn handle_push_event(gitlab_event: &GitlabEvent) -> String {
 
     // replace - with \- to avoid error in telegram markdown
     let project_name = &project.name;
-    let project_url = &project.homepage.as_ref().unwrap();
+    // set project_url to project.homepage if not none set "dummy_url" otherwise
+    let fallback_project_url = "empty_gitlab_project_url".to_owned();
+    let project_url = &project.homepage.as_ref().unwrap_or(&fallback_project_url);
 
     let mut commit_paragraph = String::new();
 
