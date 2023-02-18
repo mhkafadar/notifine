@@ -35,6 +35,7 @@ async fn main() {
     connection.run_pending_migrations(MIGRATIONS);
 
     task::spawn(run_gitlab_bot());
+    task::spawn(run_trello_bot());
     run_http_server().await.expect("Http server error");
 
     log::info!("Main 2");
