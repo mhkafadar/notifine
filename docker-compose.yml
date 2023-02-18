@@ -1,0 +1,40 @@
+version: '3'
+
+services:
+  notifine-bot:
+    container_name: '${COMPOSE_PROJECT_NAME}-notifine-bot'
+    build: .
+    restart: unless-stopped
+    networks:
+      - telegram_bots
+    environment:
+      - GITLAB_TELOXIDE_TOKEN=${GITLAB_TELOXIDE_TOKEN}
+      - DATABASE_URL=postgresql://notifine:${DATABASE_PASSWORD}@notifine-db
+      - WEBHOOK_BASE_URL=${WEBHOOK_BASE_URL}
+      - RUST_BACKTRACE=1
+      - TELEGRAM_ADMIN_CHAT_ID=${TELEGRAM_ADMIN_CHAT_ID}
+
+    depends_on:
+      - notifine-db
+    expose:
+      - 8080
+
+  notifine-db:
+    container_name: '${COMPOSE_PROJECT_NAME}-notifine-db'
+    image: postgres:11
+    restart: unless-stopped
+    networks:
+      - telegram_bots
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_USER=notifine
+      - PUID=1000
+      - GUID=1000
+    expose:
+      - 5432
+
+networks:
+  telegram_bots:
+    name: telegram_bots
