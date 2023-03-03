@@ -13,7 +13,7 @@ pub fn handle_push_event(gitlab_event: &GitlabEvent) -> String {
 
     let mut commit_paragraph = String::new();
 
-    for commit in gitlab_event.commits.as_ref().unwrap() {
+    for commit in gitlab_event.commits.as_ref().unwrap().iter().rev() {
         log::info!("Commit: {}", commit.message);
         log::info!("Commit url: {}", commit.url);
         log::info!("Commit author: {}", commit.author.name);
@@ -22,10 +22,10 @@ pub fn handle_push_event(gitlab_event: &GitlabEvent) -> String {
         let commit_message = &commit.message.trim_end();
         let commit_author_name = &commit.author.name;
 
-        // commit_paragraph.push_str(&format!("{}: [{}]({}) to [{}:{}]({})\n", commit_author_name, commit_message, commit_url, project_name, branch_name, project_url));
         commit_paragraph.push_str(&format!(
-            "<b>{}</b>: <a href=\"{}\">{}</a> to <a href=\"{}\">{}:{}</a>\n",
-            commit_author_name, commit_url, commit_message, project_url, project_name, branch_name
+            "<b>{commit_author_name}</b>: \
+            <a href=\"{commit_url}\">{commit_message}</a> \
+            to <a href=\"{project_url}\">{project_name}:{branch_name}</a>\n",
         ));
     }
 
