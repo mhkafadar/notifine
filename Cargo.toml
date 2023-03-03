@@ -6,17 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-teloxide = { version = "0.11", features = ["macros"] }
+teloxide = { path = "../teloxide/crates/teloxide", features = ["macros"] }
 log = "0.4"
 pretty_env_logger = "0.4"
 tokio = { version =  "1.8", features = ["rt-multi-thread", "macros"] }
 actix-web = "4"
 serde = { version = "1.0", features = ["derive"] }
 dotenv = "0.15.0"
-diesel = { version = "2.0.0", features = ["postgres"] }
+diesel = { version = "2.0.0", features = ["postgres", "r2d2"] }
 rand = "0.8.5"
 reqwest = { version = "0.11.13", features = ["json", "blocking"] }
 reqwest-oauth1 = "0.2.3"
 oauth = { version = "0.6", package = "oauth1-request" }
 ureq = { version="2.5.0", features = ["json"] }
 url = "2.3.1"
+diesel_migrations = "2.0.0"
