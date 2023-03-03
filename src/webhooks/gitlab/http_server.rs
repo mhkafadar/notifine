@@ -12,6 +12,7 @@ use std::env;
 pub struct GitlabEvent {
     pub object_kind: String,
     pub event_name: Option<String>,
+    pub before: Option<String>,
     pub r#ref: Option<String>,
     pub checkout_sha: Option<String>,
     pub message: Option<String>,
