@@ -139,7 +139,7 @@ pub async fn send_message_gitlab(chat_id: i64, message: String) -> ResponseResul
 }
 
 async fn handle_new_chat_and_start_command(telegram_chat_id: i64) -> ResponseResult<()> {
-    let webhook_url = get_webhook_url_or_create(telegram_chat_id as i32);
+    let webhook_url = get_webhook_url_or_create(telegram_chat_id);
 
     let message = if webhook_url.0.is_empty() {
         log::error!("Error creating or getting webhook: {:?}", webhook_url);

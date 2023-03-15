@@ -35,7 +35,7 @@ pub fn create_webhook(webhook_url: &str, name: &str, chat_id: i32) -> Webhook {
         .expect("Error saving new webhook")
 }
 
-pub fn get_webhook_url_or_create(telegram_chat_id: i32) -> (String, bool) {
+pub fn get_webhook_url_or_create(telegram_chat_id: i64) -> (String, bool) {
     // find webhook by chat_id or create new one
     use self::schema::chats;
 
