@@ -83,7 +83,7 @@ struct CreateFirstRow {
 }
 
 fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
-    let branch_name = push_event.ref_field.split('/').last().unwrap();
+    let branch_name = push_event.ref_field.split("refs/heads/").last().unwrap();
     let project_name = &push_event.repository.name;
     let project_url = &push_event.repository.html_url;
     let mut delete_branch_event = false;

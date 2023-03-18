@@ -65,7 +65,7 @@ enum Command {
 //     Ok(())
 // }
 
-async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_start_command(msg: Message) -> ResponseResult<()> {
     log::info!("Start command received");
     handle_new_chat_and_start_command(
         msg.chat
@@ -89,7 +89,7 @@ async fn handle_bot_review(bot: Bot, dialogue: MyDialogue, msg: Message) -> Resp
     Ok(())
 }
 
-async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
+async fn handle_new_message(message: Message) -> ResponseResult<()> {
     let chat_id = message.chat.id.0;
 
     if let Some(text) = message.text() {
@@ -100,7 +100,7 @@ async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
     Ok(())
 }
 
-async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> ResponseResult<()> {
+async fn handle_my_chat_member_update(update: ChatMemberUpdated) -> ResponseResult<()> {
     let chat_id = update.chat.id.0;
 
     log::info!(

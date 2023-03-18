@@ -1,5 +1,4 @@
 use crate::bots::gitlab_bot::run_gitlab_bot;
-use crate::bots::trello_bot::run_trello_bot;
 use crate::http_server::run_http_server;
 
 use dotenv::dotenv;
@@ -11,11 +10,9 @@ pub mod http_server;
 pub mod webhooks;
 
 use crate::bots::github_bot::run_github_bot;
-use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PoolError, PooledConnection};
 use diesel::PgConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use std::error::Error;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 pub type PgPooledConnection = PooledConnection<ConnectionManager<PgConnection>>;
@@ -39,5 +36,5 @@ async fn main() {
     // task::spawn(run_trello_bot());
     run_http_server().await.expect("Http server error");
 
-    log::info!("Main 2");
+    log::info!("Main");
 }
