@@ -132,6 +132,7 @@ pub async fn send_message_github(chat_id: i64, message: String) -> ResponseResul
     let chat_id = ChatId(chat_id);
 
     bot.send_message(chat_id, message)
+        .disable_web_page_preview(true)
         .parse_mode(ParseMode::Html)
         .send()
         .await?;
