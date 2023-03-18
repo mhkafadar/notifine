@@ -43,9 +43,6 @@ pub fn handle_push_event(body: &web::Bytes) -> String {
 
     let CreateFirstRow {
         first_row,
-        branch_name,
-        project_name,
-        project_url,
         delete_branch_event,
     } = create_first_row(&push_event);
 
@@ -66,8 +63,7 @@ pub fn handle_push_event(body: &web::Bytes) -> String {
 
         commit_paragraph.push_str(&format!(
             "<b>{commit_author_name}</b>: \
-            <a href=\"{commit_url}\">{commit_message}</a> \
-            to <a href=\"{project_url}\">{project_name}:{branch_name}</a>\n",
+            <a href=\"{commit_url}\">{commit_message}</a>\n",
         ));
     }
 
@@ -76,9 +72,6 @@ pub fn handle_push_event(body: &web::Bytes) -> String {
 
 struct CreateFirstRow {
     first_row: String,
-    branch_name: String,
-    project_name: String,
-    project_url: String,
     delete_branch_event: bool,
 }
 
@@ -86,63 +79,40 @@ fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
     let branch_name = push_event.ref_field.split("refs/heads/").last().unwrap();
     let project_name = &push_event.repository.name;
     let project_url = &push_event.repository.html_url;
+    let branch_url = format!("{project_url}/tree/{branch_name}");
+    let sender = &push_event.sender.login;
     let mut delete_branch_event = false;
+    let commits_length = push_event.commits.len();
+    let commit_or_commits = if push_event.commits.len() > 1 {
+        "commits"
+    } else {
+        "commit"
+    };
 
     let first_row = if push_event.forced {
         format!(
-            "<b>{sender}</b> force pushed to <a href=\"{project_url}\">{project_name}:{branch_name}</a>\n\n",
-            sender = push_event.sender.login,
-            project_name = project_name,
-            branch_name = branch_name,
-            project_url = project_url,
+            "<b>{sender}</b> force pushed to <a href=\"{branch_url}\">{project_name}:{branch_name}</a>\n\n"
         )
     } else if push_event.before == "0000000000000000000000000000000000000000" {
         format!(
-            "<b>{sender}</b> created branch <a href=\"{project_url}\">{branch_name}</a> \
+            "<b>{sender}</b> created branch <a href=\"{branch_url}\">{branch_name}</a> \
               and pushed {commits_length} {commit_or_commits} to \
-            <a href=\"{project_url}\">{project_name}:{branch_name}</a>\n\n",
-            sender = push_event.sender.login,
-            project_name = project_name,
-            branch_name = branch_name,
-            project_url = project_url,
-            commits_length = push_event.commits.len(),
-            commit_or_commits = if push_event.commits.len() > 1 {
-                "commits"
-            } else {
-                "commit"
-            },
+            <a href=\"{branch_url}\">{project_name}:{branch_name}</a>\n\n"
         )
     } else if push_event.after == "0000000000000000000000000000000000000000" {
         delete_branch_event = true;
         format!(
-            "<b>{sender}</b> deleted branch <a href=\"{project_url}\">{project_name}:{branch_name}</a>\n\n",
-            sender = push_event.sender.login,
-            project_name = project_name,
-            branch_name = branch_name,
-            project_url = project_url
+            "<b>{sender}</b> deleted branch <a href=\"{branch_url}\">{project_name}:{branch_name}</a>\n\n"
         )
     } else {
         format!(
             "<b>{sender}</b> pushed {commits_length} {commit_or_commits} to \
-            <a href=\"{project_url}\">{project_name}:{branch_name}</a>\n\n",
-            sender = push_event.sender.login,
-            commits_length = push_event.commits.len(),
-            commit_or_commits = if push_event.commits.len() > 1 {
-                "commits"
-            } else {
-                "commit"
-            },
-            project_name = project_name,
-            branch_name = branch_name,
-            project_url = project_url
+            <a href=\"{branch_url}\">{project_name}:{branch_name}</a>\n\n"
         )
     };
 
     CreateFirstRow {
         first_row,
-        branch_name: branch_name.to_string(),
-        project_name: project_name.to_string(),
-        project_url: project_url.to_string(),
         delete_branch_event,
     }
 }
