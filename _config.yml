@@ -1,5 +1,5 @@
-title: notifine
-description: Bots for Telegram. Get notifications on new events like new commits, pipelines, etc.
+title: notifine - Reliable Telegram notifications for Github and Gitlab
+description: Instant Github, Gitlab notifications for Telegram
 show_downloads: false
 google_analytics:
 remote_theme: pages-themes/cayman@v0.2.0

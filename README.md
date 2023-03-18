@@ -12,22 +12,40 @@ Bots for Telegram. Get notifications on new events like new commits, pipelines, 
 Notifine helps with events in your work tools like Gitlab, Github, and Trello. Just send a message to notifine or add it to your telegram group. It will provide you with a webhook link right away. Copy this link and paste it to your favorite tool (only GitLab now).
 
 - 🤖 [Gitlab bot](https://t.me/git_events_bot)
-- 🧭 Github bot (Soon)
+- 🤖 [Github bot](https://t.me/github_notifine_bot)
 - 🧭 Trello bot (Soon)
 
 ---
 
+**Mar 18, 2023: Github bot has started working!**
+
 **Dec 04, 2022: Gitlab bot has started working!**
-
-Available notifications: Push, Tag push, Issue, Comments on Issues
-
-Notifications will be available with the next releases: Pipeline, Jobs, Wiki, Comments
 
 ---
 
+## Available Notifications
+
+### GitHub
+
+ ✅ Commit push  
+ ✅ Branch creation, deletion  
+ ✅ Issue creation, issue update
+
+
+### GitLab
+
+ ✅ Commit push  
+ ✅ Tag push
+
+### Coming Soon 
+
+⏳ Pipeline notifications (April)  
+⏳ Pull request notifications (April)  
+⏳ Deployment notifications (April)
+
 ## ✨ Features
 
-**⚡️😎 100% open source and free**
+**😎 100% open source and free**
 
 Backend (Rust) and infrastructure codes (AWS CDK) are open sources.
 
@@ -37,7 +55,7 @@ There are some telegram bots available already. But they are not able to provide
 
 **🎓 Educational purposes**
 
-I am planning to prepare a tutorial based on this project. And help new Rustaceans with an up to date Rust implementation.
+I am planning to prepare a tutorial based on this project. And help new Rustaceans with an up-to-date Rust implementation.
 
 **⚡️ Built on Rust**
 
