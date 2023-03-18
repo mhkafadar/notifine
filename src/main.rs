@@ -3,19 +3,19 @@ use crate::bots::trello_bot::run_trello_bot;
 use crate::http_server::run_http_server;
 
 use dotenv::dotenv;
-use tokio::task;
 use std::env;
+use tokio::task;
 
 pub mod bots;
 pub mod http_server;
 pub mod webhooks;
 
-
+use crate::bots::github_bot::run_github_bot;
+use diesel::prelude::*;
+use diesel::r2d2::{ConnectionManager, Pool, PoolError, PooledConnection};
+use diesel::PgConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use std::error::Error;
-use diesel::prelude::*;
-use diesel::PgConnection;
-use diesel::r2d2::{ConnectionManager, Pool, PoolError, PooledConnection};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 pub type PgPooledConnection = PooledConnection<ConnectionManager<PgConnection>>;
@@ -35,7 +35,8 @@ async fn main() {
     connection.run_pending_migrations(MIGRATIONS);
 
     task::spawn(run_gitlab_bot());
-    task::spawn(run_trello_bot());
+    task::spawn(run_github_bot());
+    // task::spawn(run_trello_bot());
     run_http_server().await.expect("Http server error");
 
     log::info!("Main 2");
