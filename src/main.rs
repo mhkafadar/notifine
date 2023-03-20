@@ -9,6 +9,7 @@ pub mod bots;
 pub mod http_server;
 pub mod webhooks;
 
+use crate::bots::beep_bot::run_beep_bot;
 use crate::bots::github_bot::run_github_bot;
 use diesel::r2d2::{ConnectionManager, Pool, PoolError, PooledConnection};
 use diesel::PgConnection;
@@ -33,6 +34,7 @@ async fn main() {
 
     task::spawn(run_gitlab_bot());
     task::spawn(run_github_bot());
+    task::spawn(run_beep_bot());
     // task::spawn(run_trello_bot());
     run_http_server().await.expect("Http server error");
 
