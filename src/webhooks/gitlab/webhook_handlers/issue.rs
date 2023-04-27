@@ -1,23 +1,44 @@
-use crate::webhooks::gitlab::http_server::GitlabEvent;
+use actix_web::web;
+use serde::Deserialize;
+use ureq::serde_json;
 
-pub fn handle_issue_event(gitlab_event: &GitlabEvent) -> String {
-    let project = &gitlab_event.project;
-    let project_name = &project.name;
-    let project_url = &project.homepage.as_ref().unwrap();
-    let user_name = &gitlab_event.user.as_ref().unwrap().name;
-    let issue = &gitlab_event.object_attributes.as_ref().unwrap();
-    let issue_url = &issue.url.as_ref().unwrap();
-    let issue_title = &issue.title.as_ref().unwrap();
+#[derive(Debug, Deserialize)]
+struct IssueEvent {
+    user: User,
+    object_attributes: IssueDetails,
+}
 
-    if issue.action.is_none() {
-        return "".to_string();
+#[derive(Debug, Deserialize)]
+struct IssueDetails {
+    title: String,
+    url: String,
+    state: String,
+    action: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct User {
+    name: String,
+}
+
+pub fn handle_issue_event(body: &web::Bytes) -> String {
+    let issue_event: IssueEvent = serde_json::from_slice(body).unwrap();
+
+    let issue_details = &issue_event.object_attributes;
+    let url = &issue_details.url;
+    let title = &issue_details.title;
+    let action = &issue_details.action;
+    let user_name = &issue_event.user.name;
+
+    if action == "open" {
+        format!("<b>{user_name}</b> opened a new issue <a href=\"{url}\">{title}</a>\n",)
+    } else if action == "update" {
+        format!("<b>{user_name}</b> updated issue <a href=\"{url}\">{title}</a>\n",)
+    } else if action == "close" {
+        format!("<b>{user_name}</b> closed issue <a href=\"{url}\">{title}</a>\n",)
+    } else if action == "reopen" {
+        format!("<b>{user_name}</b> reopened issue <a href=\"{url}\">{title}</a>\n",)
+    } else {
+        format!("<b>{user_name}</b> {action} issue <a href=\"{url}\">{title}</a>\n",)
     }
-
-    let issue_action = &issue.action.as_ref().unwrap();
-
-    // TODO handle open+ed close+d grammar
-    format!(
-        "<b>{}</b> {} issue <a href=\"{}\">{}</a> on <a href=\"{}\">{}</a>\n",
-        user_name, issue_action, issue_url, issue_title, project_url, project_name
-    )
 }

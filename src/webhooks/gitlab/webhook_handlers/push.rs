@@ -1,25 +1,54 @@
-use crate::webhooks::gitlab::http_server::GitlabEvent;
 use crate::webhooks::gitlab::webhook_handlers::new_branch_push::new_branch_push;
+use actix_web::web;
+use serde::Deserialize;
+use ureq::serde_json;
 
-pub fn handle_push_event(gitlab_event: &GitlabEvent) -> String {
+#[derive(Debug, Deserialize)]
+struct PushEvent {
+    before: String,
+    after: String,
+    #[serde(rename = "ref")]
+    pub ref_field: String,
+    project: Project,
+    commits: Vec<Commit>,
+    user_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Project {
+    name: String,
+    homepage: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Commit {
+    message: String,
+    url: String,
+    author: Author,
+}
+
+#[derive(Debug, Deserialize)]
+struct Author {
+    name: String,
+}
+
+pub fn handle_push_event(body: &web::Bytes) -> String {
+    let push_event: PushEvent = serde_json::from_slice(body).unwrap();
     // check if it is a new branch push
-    if gitlab_event.before.as_ref().unwrap() == "0000000000000000000000000000000000000000" {
-        return new_branch_push(&gitlab_event);
+    // if push_event.before.as_ref().unwrap() == "0000000000000000000000000000000000000000" {
+    //     return new_branch_push(&gitlab_event);
+    // }
+
+    let CreateFirstRow {
+        mut commit_paragraph,
+        delete_branch_event,
+    } = create_first_row(&push_event);
+
+    if delete_branch_event {
+        return commit_paragraph;
     }
 
-    let branch_ref = &gitlab_event.r#ref.as_ref().unwrap();
-    let branch_name = branch_ref.split('/').last().unwrap();
-    let project = &gitlab_event.project;
-
-    // replace - with \- to avoid error in telegram markdown
-    let project_name = &project.name;
-    // set project_url to project.homepage if not none set "dummy_url" otherwise
-    let fallback_project_url = "empty_gitlab_project_url".to_owned();
-    let project_url = &project.homepage.as_ref().unwrap_or(&fallback_project_url);
-
-    let mut commit_paragraph = String::new();
-
-    for commit in gitlab_event.commits.as_ref().unwrap().iter().rev() {
+    for commit in push_event.commits.iter().rev() {
         log::info!("Commit: {}", commit.message);
         log::info!("Commit url: {}", commit.url);
         log::info!("Commit author: {}", commit.author.name);
@@ -30,10 +59,52 @@ pub fn handle_push_event(gitlab_event: &GitlabEvent) -> String {
 
         commit_paragraph.push_str(&format!(
             "<b>{commit_author_name}</b>: \
-            <a href=\"{commit_url}\">{commit_message}</a> \
-            to <a href=\"{project_url}\">{project_name}:{branch_name}</a>\n",
+            <a href=\"{commit_url}\">{commit_message}</a>\n",
         ));
     }
 
     commit_paragraph
+}
+
+struct CreateFirstRow {
+    commit_paragraph: String,
+    delete_branch_event: bool,
+}
+
+fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
+    let branch_name = push_event.ref_field.split("refs/heads/").last().unwrap();
+    let project_name = &push_event.project.name;
+    let project_url = &push_event.project.homepage;
+    let branch_url = format!("{project_url}/tree/{branch_name}");
+    let sender = &push_event.user_name;
+    let mut delete_branch_event = false;
+    let commits_length = push_event.commits.len();
+    let commit_or_commits = if push_event.commits.len() > 1 {
+        "commits"
+    } else {
+        "commit"
+    };
+
+    let commit_paragraph = if push_event.before == "0000000000000000000000000000000000000000" {
+        format!(
+            "<b>{sender}</b> created branch <a href=\"{branch_url}\">{branch_name}</a> \
+              and pushed {commits_length} {commit_or_commits} to \
+            <a href=\"{branch_url}\">{project_name}:{branch_name}</a>\n\n"
+        )
+    } else if push_event.after == "0000000000000000000000000000000000000000" {
+        delete_branch_event = true;
+        format!(
+            "<b>{sender}</b> deleted branch <a href=\"{branch_url}\">{project_name}:{branch_name}</a>\n\n"
+        )
+    } else {
+        format!(
+            "<b>{sender}</b> pushed {commits_length} {commit_or_commits} to \
+            <a href=\"{branch_url}\">{project_name}:{branch_name}</a>\n\n"
+        )
+    };
+
+    CreateFirstRow {
+        commit_paragraph,
+        delete_branch_event,
+    }
 }

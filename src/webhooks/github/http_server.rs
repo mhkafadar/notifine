@@ -25,9 +25,8 @@ pub async fn handle_github_webhook(
             return HttpResponse::Ok();
         }
 
-        let webhook_url = &webhook_url;
-        log::info!("webhook_url: {}", webhook_url);
-        let webhook = find_webhook_by_webhook_url(webhook_url);
+        log::info!("webhook_url: {}", &webhook_url);
+        let webhook = find_webhook_by_webhook_url(&webhook_url);
 
         if webhook.is_none() {
             log::error!("Webhook not found");
