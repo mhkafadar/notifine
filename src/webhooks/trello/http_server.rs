@@ -1,4 +1,4 @@
-use crate::bots::gitlab_bot::send_message_gitlab;
+
 use crate::bots::trello_bot::send_message_trello;
 use actix_web::{get, web, HttpResponse, Responder};
 use notifine::{find_trello_token_by_token_key, update_trello_token_access_token};
@@ -18,11 +18,11 @@ struct GetAccessToken<'a> {
     oauth_verifier: &'a str,
 }
 
-#[derive(Deserialize)]
-struct AccessTokenResponse {
-    oauth_token: String,
-    oauth_token_secret: String,
-}
+// #[derive(Deserialize)]
+// struct AccessTokenResponse {
+//     oauth_token: String,
+//     oauth_token_secret: String,
+// }
 
 #[get("/trello/callback")]
 // handle CallbackQueryParams
@@ -46,21 +46,21 @@ pub async fn handle_trello_callback(
         trello_token.token_secret.as_ref().unwrap().to_string(),
     );
 
-    let access_URL = "https://trello.com/1/OAuthGetAccessToken";
+    let access_url = "https://trello.com/1/OAuthGetAccessToken";
     // generate auth header
 
     let request = GetAccessToken {
         oauth_verifier: &query_params.oauth_verifier,
     };
 
-    let authorization_header = oauth::get(access_URL, &request, &token, oauth::HmacSha1::new());
+    let authorization_header = oauth::get(access_url, &request, &token, oauth::HmacSha1::new());
 
     println!("Authorization header: {}", authorization_header);
 
     // send request to request_URL with authorization_header use ureq crate for this
     // set header application/x-www-form-urlencoded
 
-    match ureq::get(access_URL)
+    match ureq::get(access_url)
         .set("Authorization", &authorization_header)
         .query("oauth_verifier", &query_params.oauth_verifier)
         // .send_json(ureq::json!({
@@ -93,7 +93,7 @@ pub async fn handle_trello_callback(
             .await
             .unwrap();
         }
-        Err(Error::Status(code, response)) => {
+        Err(Error::Status(_code, response)) => {
             println!("Error: {}", response.into_string().unwrap());
         }
         Err(_) => {

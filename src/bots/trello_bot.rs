@@ -1,21 +1,18 @@
 use notifine::{create_trello_token, find_trello_token_by_telegram_user_id};
-use reqwest;
-use serde::{Deserialize, Serialize};
+
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
-use std::error::Error;
+
 use teloxide::dispatching::dialogue;
 use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::dptree::case;
 use teloxide::filter_command;
 use teloxide::prelude::*;
 use teloxide::types::{
-    InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultArticle, InputMessageContent,
-    InputMessageContentText, KeyboardButton, KeyboardMarkup, Me, ParseMode,
+    InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, KeyboardMarkup, ParseMode,
 };
 use teloxide::utils::command::BotCommands;
-
-type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Clone, Default)]
 pub enum State {
@@ -122,7 +119,7 @@ fn make_keyboard() -> KeyboardMarkup {
     KeyboardMarkup::new(keyboard)
 }
 
-async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_start_command(bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     let keyboard = make_inline_keyboard();
     bot.send_message(msg.chat.id, "Debian versions:")
         .reply_markup(keyboard)
@@ -131,7 +128,7 @@ async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> R
     Ok(())
 }
 
-async fn handle_testy_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_testy_command(bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     let keyboard = make_keyboard();
     bot.send_message(msg.chat.id, "Debian versions:")
         .reply_markup(keyboard)
@@ -140,17 +137,17 @@ async fn handle_testy_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> R
     Ok(())
 }
 
-async fn handle_help_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_help_command(bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     bot.send_message(msg.chat.id, Command::descriptions().to_string())
         .await?;
 
     Ok(())
 }
 
-async fn handle_login_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
-    let request_URL = "https://trello.com/1/OAuthGetRequestToken";
-    let authorize_URL = "https://trello.com/1/OAuthAuthorizeToken";
-    let access_URL = "https://trello.com/1/OAuthGetAccessToken";
+async fn handle_login_command(bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+    let request_url = "https://trello.com/1/OAuthGetRequestToken";
+    let _authorize_url = "https://trello.com/1/OAuthAuthorizeToken";
+    let _access_url = "https://trello.com/1/OAuthGetAccessToken";
 
     let trello_key = env::var("TRELLO_KEY").expect("TRELLO_KEY must be set");
     let trello_secret = env::var("TRELLO_SECRET").expect("TRELLO_SECRET must be set");
@@ -165,12 +162,12 @@ async fn handle_login_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> R
 
     let authorization_header = oauth::Builder::<_, _>::new(client, oauth::HmacSha1::new())
         .callback(callback.as_str())
-        .post(request_URL, &());
+        .post(request_url, &());
 
     println!("Authorization header: {}", authorization_header);
 
     // send request to request_URL with authorization_header use ureq crate for this
-    let response: String = ureq::post(request_URL)
+    let response: String = ureq::post(request_url)
         .set("Authorization", &authorization_header)
         .call()
         .unwrap()
@@ -231,7 +228,7 @@ async fn handle_board_selection(
 ) -> ResponseResult<()> {
     log::info!("Board selection received");
     log::info!("Board name: {}", msg.text().unwrap());
-    let chat_id = msg.chat.id;
+    let _chat_id = msg.chat.id;
 
     let boards = get_trello_boards(&msg.chat.id.to_string());
     // find board with name
@@ -270,7 +267,7 @@ async fn handle_board_selection(
 async fn handle_list_selection(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     log::info!("List selection received");
     log::info!("List name: {}", msg.text().unwrap());
-    let chat_id = msg.chat.id;
+    let _chat_id = msg.chat.id;
 
     let keyboard = make_keyboard();
 
@@ -289,50 +286,50 @@ struct GetAccessToken<'a> {
     oauth_verifier: &'a str,
 }
 
-async fn inline_query_handler(
-    bot: Bot,
-    q: InlineQuery,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let choose_debian_version = InlineQueryResultArticle::new(
-        "0",
-        "Chose debian version",
-        InputMessageContent::Text(InputMessageContentText::new("Debian versions:")),
-    )
-    .reply_markup(make_inline_keyboard());
-
-    bot.answer_inline_query(q.id, vec![choose_debian_version.into()])
-        .await?;
-
-    Ok(())
-}
+// async fn inline_query_handler(
+//     bot: Bot,
+//     q: InlineQuery,
+// ) -> Result<(), Box<dyn Error + Send + Sync>> {
+//     let choose_debian_version = InlineQueryResultArticle::new(
+//         "0",
+//         "Chose debian version",
+//         InputMessageContent::Text(InputMessageContentText::new("Debian versions:")),
+//     )
+//     .reply_markup(make_inline_keyboard());
+//
+//     bot.answer_inline_query(q.id, vec![choose_debian_version.into()])
+//         .await?;
+//
+//     Ok(())
+// }
 
 /// When it receives a callback from a button it edits the message with all
 /// those buttons writing a text with the selected Debian version.
 ///
 /// **IMPORTANT**: do not send privacy-sensitive data this way!!!
 /// Anyone can read data stored in the callback button.
-async fn callback_handler(bot: Bot, q: CallbackQuery) -> Result<(), Box<dyn Error + Send + Sync>> {
-    if let Some(version) = q.data {
-        let text = format!("You chose: {version}");
-
-        // Tell telegram that we've seen this query, to remove 🕑 icons from the
-        //
-        // clients. You could also use `answer_callback_query`'s optional
-        // parameters to tweak what happens on the client side.
-        bot.answer_callback_query(q.id).await?;
-
-        // Edit text of the message to which the buttons were attached
-        if let Some(Message { id, chat, .. }) = q.message {
-            bot.edit_message_text(chat.id, id, text).await?;
-        } else if let Some(id) = q.inline_message_id {
-            bot.edit_message_text_inline(id, text).await?;
-        }
-
-        log::info!("You chose: {}", version);
-    }
-
-    Ok(())
-}
+// async fn callback_handler(bot: Bot, q: CallbackQuery) -> Result<(), Box<dyn Error + Send + Sync>> {
+//     if let Some(version) = q.data {
+//         let text = format!("You chose: {version}");
+//
+//         // Tell telegram that we've seen this query, to remove 🕑 icons from the
+//         //
+//         // clients. You could also use `answer_callback_query`'s optional
+//         // parameters to tweak what happens on the client side.
+//         bot.answer_callback_query(q.id).await?;
+//
+//         // Edit text of the message to which the buttons were attached
+//         if let Some(Message { id, chat, .. }) = q.message {
+//             bot.edit_message_text(chat.id, id, text).await?;
+//         } else if let Some(id) = q.inline_message_id {
+//             bot.edit_message_text_inline(id, text).await?;
+//         }
+//
+//         log::info!("You chose: {}", version);
+//     }
+//
+//     Ok(())
+// }
 
 pub async fn send_message_trello(chat_id: i64, message: String) -> ResponseResult<()> {
     log::info!("Sending message to {}: {}", chat_id, message);
@@ -368,10 +365,10 @@ struct Board {
 
 #[derive(Deserialize, Debug)]
 struct List {
-    id: String,
+    // id: String,
     name: String,
-    pos: i64,
-    closed: bool,
+    // pos: i64,
+    // closed: bool,
 }
 
 fn get_trello_boards(telegram_user_id: &str) -> Vec<Board> {
@@ -381,7 +378,7 @@ fn get_trello_boards(telegram_user_id: &str) -> Vec<Board> {
     let trello_key = env::var("TRELLO_KEY").expect("TRELLO_KEY must be set");
 
     // use ureq for request to trello api
-    let request_URL = "https://api.trello.com/1/members/me/boards";
+    let request_url = "https://api.trello.com/1/members/me/boards";
 
     // let token =
     //     oauth::Token::from_parts(trello_key, trello_secret, access_token, access_token_secret);
@@ -391,7 +388,7 @@ fn get_trello_boards(telegram_user_id: &str) -> Vec<Board> {
 
     // let authorization_header = oauth::get(request_URL, &(), &token, oauth::HmacSha1::new());
 
-    let boards: Vec<Board> = match ureq::get(request_URL)
+    let boards: Vec<Board> = match ureq::get(request_url)
         // .set("Authorization", &authorization_header)
         .query("key", &trello_key)
         .query("token", &access_token)
@@ -436,7 +433,7 @@ fn get_trello_lists_of_board(telegram_user_id: &str, board_id: &str) -> Vec<List
     lists
 }
 
-async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
+async fn handle_new_message(_bot: Bot, message: Message) -> ResponseResult<()> {
     let chat_id = message.chat.id.0;
 
     if let Some(text) = message.text() {
