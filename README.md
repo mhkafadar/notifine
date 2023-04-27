@@ -34,12 +34,12 @@ Notifine helps with events in your work tools like Gitlab, Github, and Trello. J
 
 ### GitLab
 
- ✅ Commit push  
- ✅ Tag push
- ✅ Pipeline 
- ✅ Pull request
- ✅ Issue
- ✅ Comment
+ ✅ Commit push   
+ ✅ Tag push  
+ ✅ Pipeline   
+ ✅ Pull request  
+ ✅ Issue  
+ ✅ Comment  
 
 ### Coming Soon 
 
