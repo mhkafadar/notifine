@@ -1,4 +1,3 @@
-use crate::webhooks::gitlab::webhook_handlers::new_branch_push::new_branch_push;
 use actix_web::web;
 use serde::Deserialize;
 use ureq::serde_json;
@@ -15,7 +14,6 @@ struct MergeRequestDetails {
     url: String,
     source_branch: String,
     target_branch: String,
-    state: String,
     action: String,
 }
 

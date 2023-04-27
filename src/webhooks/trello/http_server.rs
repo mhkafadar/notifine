@@ -1,4 +1,4 @@
-use crate::bots::gitlab_bot::send_message_gitlab;
+
 use crate::bots::trello_bot::send_message_trello;
 use actix_web::{get, web, HttpResponse, Responder};
 use notifine::{find_trello_token_by_token_key, update_trello_token_access_token};
@@ -93,7 +93,7 @@ pub async fn handle_trello_callback(
             .await
             .unwrap();
         }
-        Err(Error::Status(code, response)) => {
+        Err(Error::Status(_code, response)) => {
             println!("Error: {}", response.into_string().unwrap());
         }
         Err(_) => {

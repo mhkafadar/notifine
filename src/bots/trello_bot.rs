@@ -1,21 +1,18 @@
 use notifine::{create_trello_token, find_trello_token_by_telegram_user_id};
-use reqwest;
-use serde::{Deserialize, Serialize};
+
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
-use std::error::Error;
+
 use teloxide::dispatching::dialogue;
 use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::dptree::case;
 use teloxide::filter_command;
 use teloxide::prelude::*;
 use teloxide::types::{
-    InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultArticle, InputMessageContent,
-    InputMessageContentText, KeyboardButton, KeyboardMarkup, Me, ParseMode,
+    InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, KeyboardMarkup, ParseMode,
 };
 use teloxide::utils::command::BotCommands;
-
-type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Clone, Default)]
 pub enum State {
@@ -122,7 +119,7 @@ fn make_keyboard() -> KeyboardMarkup {
     KeyboardMarkup::new(keyboard)
 }
 
-async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_start_command(bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     let keyboard = make_inline_keyboard();
     bot.send_message(msg.chat.id, "Debian versions:")
         .reply_markup(keyboard)
@@ -131,7 +128,7 @@ async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> R
     Ok(())
 }
 
-async fn handle_testy_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_testy_command(bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     let keyboard = make_keyboard();
     bot.send_message(msg.chat.id, "Debian versions:")
         .reply_markup(keyboard)
@@ -140,17 +137,17 @@ async fn handle_testy_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> R
     Ok(())
 }
 
-async fn handle_help_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_help_command(bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     bot.send_message(msg.chat.id, Command::descriptions().to_string())
         .await?;
 
     Ok(())
 }
 
-async fn handle_login_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_login_command(bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     let request_url = "https://trello.com/1/OAuthGetRequestToken";
-    let authorize_url = "https://trello.com/1/OAuthAuthorizeToken";
-    let access_url = "https://trello.com/1/OAuthGetAccessToken";
+    let _authorize_url = "https://trello.com/1/OAuthAuthorizeToken";
+    let _access_url = "https://trello.com/1/OAuthGetAccessToken";
 
     let trello_key = env::var("TRELLO_KEY").expect("TRELLO_KEY must be set");
     let trello_secret = env::var("TRELLO_SECRET").expect("TRELLO_SECRET must be set");
@@ -231,7 +228,7 @@ async fn handle_board_selection(
 ) -> ResponseResult<()> {
     log::info!("Board selection received");
     log::info!("Board name: {}", msg.text().unwrap());
-    let chat_id = msg.chat.id;
+    let _chat_id = msg.chat.id;
 
     let boards = get_trello_boards(&msg.chat.id.to_string());
     // find board with name
@@ -270,7 +267,7 @@ async fn handle_board_selection(
 async fn handle_list_selection(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     log::info!("List selection received");
     log::info!("List name: {}", msg.text().unwrap());
-    let chat_id = msg.chat.id;
+    let _chat_id = msg.chat.id;
 
     let keyboard = make_keyboard();
 
@@ -436,7 +433,7 @@ fn get_trello_lists_of_board(telegram_user_id: &str, board_id: &str) -> Vec<List
     lists
 }
 
-async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
+async fn handle_new_message(_bot: Bot, message: Message) -> ResponseResult<()> {
     let chat_id = message.chat.id.0;
 
     if let Some(text) = message.text() {

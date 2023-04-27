@@ -6,7 +6,7 @@ use teloxide::dptree::case;
 use teloxide::prelude::*;
 use teloxide::types::{ChatMemberKind, ParseMode};
 use teloxide::utils::command::BotCommands;
-use teloxide::{filter_command, RequestError};
+use teloxide::{filter_command};
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 
@@ -65,7 +65,7 @@ enum Command {
 //     Ok(())
 // }
 
-async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_start_command(_bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     log::info!("Start command received");
     let inviter_username = match msg.from() {
         Some(user) => user.username.clone(),
@@ -95,7 +95,7 @@ async fn handle_bot_review(bot: Bot, dialogue: MyDialogue, msg: Message) -> Resp
     Ok(())
 }
 
-async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
+async fn handle_new_message(_bot: Bot, message: Message) -> ResponseResult<()> {
     let chat_id = message.chat.id.0;
 
     if let Some(text) = message.text() {
@@ -106,7 +106,7 @@ async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
     Ok(())
 }
 
-async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> ResponseResult<()> {
+async fn handle_my_chat_member_update(_bot: Bot, update: ChatMemberUpdated) -> ResponseResult<()> {
     let chat_id = update.chat.id.0;
 
     log::info!(

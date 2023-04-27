@@ -12,7 +12,6 @@ struct IssueEvent {
 struct IssueDetails {
     title: String,
     url: String,
-    state: String,
     action: String,
 }
 

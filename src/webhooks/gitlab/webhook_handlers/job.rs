@@ -1,12 +1,9 @@
-use crate::webhooks::gitlab::webhook_handlers::new_branch_push::new_branch_push;
 use actix_web::web;
 use serde::Deserialize;
 use ureq::serde_json;
 
 #[derive(Debug, Deserialize)]
 struct JobEvent {
-    #[serde(rename = "ref")]
-    pub ref_field: String,
     build_id: u64,
     build_name: String,
     build_status: String,

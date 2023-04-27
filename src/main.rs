@@ -10,7 +10,7 @@ pub mod http_server;
 pub mod webhooks;
 
 use crate::bots::github_bot::run_github_bot;
-use diesel::r2d2::{ConnectionManager, Pool, PoolError, PooledConnection};
+use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::PgConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
