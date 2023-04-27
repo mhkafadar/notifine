@@ -1,18 +1,33 @@
-use crate::webhooks::gitlab::http_server::GitlabEvent;
 
-pub fn handle_tag_push_event(gitlab_event: &GitlabEvent) -> String {
-    let tag_ref = &gitlab_event.r#ref.as_ref().unwrap();
-    let tag_name = tag_ref.split("refs/tags/").last().unwrap();
-    let project = &gitlab_event.project;
+use actix_web::web;
+use serde::Deserialize;
+use ureq::serde_json;
 
-    // replace - with \- to avoid error in telegram markdown
-    let project_name = &project.name;
-    let project_url = &project.homepage.as_ref().unwrap();
+#[derive(Debug, Deserialize)]
+struct TagPushEvent {
+    #[serde(rename = "ref")]
+    pub ref_field: String,
+    project: Project,
+    user_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Project {
+    name: String,
+    homepage: String,
+}
+
+pub fn handle_tag_push_event(body: &web::Bytes) -> String {
+    let tag_push_event: TagPushEvent = serde_json::from_slice(body).unwrap();
+
+    let tag_name = tag_push_event.ref_field.trim_start_matches("refs/tags/");
+    let project_name = &tag_push_event.project.name;
+    let project_url = &tag_push_event.project.homepage;
+
     let tag_url = &format!("{}/-/tree/{}", project_url, tag_name);
-    let user_name = &gitlab_event.user_name.as_ref().unwrap();
+    let sender = &tag_push_event.user_name;
 
     format!(
-        "<b>{}</b> pushed a new tag <a href=\"{}\">{}</a> to <a href=\"{}\">{}</a>\n",
-        user_name, tag_url, tag_name, project_url, project_name
+        "<b>{sender}</b> pushed a new tag <a href=\"{tag_url}\">{tag_name}</a> to <a href=\"{project_url}\">{project_name}</a>\n",
     )
 }

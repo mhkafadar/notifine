@@ -1,5 +1,6 @@
 pub mod build;
 pub mod issue;
+pub mod job;
 pub mod merge_request;
 pub mod new_branch_push;
 pub mod note;

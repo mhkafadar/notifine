@@ -1,16 +1,41 @@
-use crate::webhooks::gitlab::http_server::GitlabEvent;
+use actix_web::web;
+use serde::Deserialize;
+use ureq::serde_json;
 
-pub fn handle_note_event(gitlab_event: &GitlabEvent) -> String {
-    let project = &gitlab_event.project;
-    let project_name = &project.name;
-    let project_url = &project.homepage.as_ref().unwrap();
-    let user_name = &gitlab_event.user.as_ref().unwrap().name;
-    let note = &gitlab_event.object_attributes.as_ref().unwrap();
-    let note_url = &note.url.as_ref().unwrap();
+#[derive(Debug, serde::Deserialize)]
+struct NoteEvent {
+    user: User,
+    object_attributes: NoteDetails,
+}
 
-    // TODO handle comments other than issue comments
-    format!(
-        "<b>{}</b> <a href=\"{}\">commented on an issue</a> on <a href=\"{}\">{}</a>\n",
-        user_name, note_url, project_url, project_name
-    )
+#[derive(Debug, Deserialize)]
+struct User {
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct NoteDetails {
+    url: String,
+    noteable_type: String,
+}
+
+pub fn handle_note_event(body: &web::Bytes) -> String {
+    let note_event: NoteEvent = serde_json::from_slice(body).unwrap();
+
+    let user_name = &note_event.user.name;
+    let note_details = &note_event.object_attributes;
+    let url = &note_details.url;
+    let noteable_type = &note_details.noteable_type;
+
+    if noteable_type == "Issue" {
+        format!("<b>{user_name}</b> commented on an <a href=\"{url}\">issue</a>\n")
+    } else if noteable_type == "MergeRequest" {
+        format!("<b>{user_name}</b> commented on a <a href=\"{url}\">merge request </a>\n")
+    } else if noteable_type == "Commit" {
+        format!("<b>{user_name}</b> commented on a <a href=\"{url}\">commit</a>\n")
+    } else if noteable_type == "Snippet" {
+        format!("<b>{user_name}</b> commented on a <a href=\"{url}\">snippet</a>\n")
+    } else {
+        format!("<b>{user_name}</b> commented on a  <a href=\"{url}\">{noteable_type}</a>\n")
+    }
 }

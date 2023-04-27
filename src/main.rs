@@ -11,7 +11,7 @@ pub mod webhooks;
 
 use crate::bots::beep_bot::run_beep_bot;
 use crate::bots::github_bot::run_github_bot;
-use diesel::r2d2::{ConnectionManager, Pool, PoolError, PooledConnection};
+use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::PgConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 

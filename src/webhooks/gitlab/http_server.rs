@@ -1,9 +1,11 @@
 use crate::bots::gitlab_bot::send_message_gitlab;
+use crate::webhooks::gitlab::webhook_handlers::job::handle_job_event;
+use crate::webhooks::gitlab::webhook_handlers::merge_request::handle_merge_request_event;
 use crate::webhooks::gitlab::webhook_handlers::{
-    issue::handle_issue_event, note::handle_note_event, pipeline::handle_pipeline_event,
-    push::handle_push_event, tag_push::handle_tag_push_event, unknown_event::handle_unknown_event,
+    issue::handle_issue_event, note::handle_note_event, push::handle_push_event,
+    tag_push::handle_tag_push_event, unknown_event::handle_unknown_event,
 };
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use serde::Deserialize;
 use std::env;
@@ -92,81 +94,74 @@ pub struct Author {
     pub email: String,
 }
 
-#[derive(Deserialize)]
-pub struct GitlabWebhook {
-    webhook_url: String,
-}
-
 #[post("/gitlab/{webhook_url}")]
 pub async fn handle_gitlab_webhook(
-    gitlab_webhook: web::Path<GitlabWebhook>,
-    gitlab_event: web::Json<GitlabEvent>,
+    webhook_url: web::Path<String>,
+    req: HttpRequest,
+    body: web::Bytes,
 ) -> impl Responder {
-    log::info!("Event details: {:?}", &gitlab_event);
-    let event_name = &gitlab_event.object_kind;
+    if let Some(event_name) = req.headers().get("x-gitlab-event") {
+        log::info!("Event: {:?}", event_name);
+        let message = match event_name.to_str() {
+            Ok("Push Hook") => handle_push_event(&body),
+            Ok("Tag Push Hook") => handle_tag_push_event(&body),
+            Ok("Issue Hook") => handle_issue_event(&body),
+            Ok("Note Hook") => handle_note_event(&body),
+            // Ok("Pipeline Hook") => handle_pipeline_event(&body),
+            Ok("Merge Request Hook") => handle_merge_request_event(&body),
+            Ok("Job Hook") => handle_job_event(&body),
+            _ => handle_unknown_event(event_name.to_str().unwrap().to_string()),
+        };
 
-    // handle push, tag_push, issue, merge_request, note, pipeline, wiki_page, build
-    let message = match event_name.as_str() {
-        "push" => handle_push_event(&gitlab_event),
-        "tag_push" => handle_tag_push_event(&gitlab_event),
-        "issue" => handle_issue_event(&gitlab_event),
-        // "merge_request" => handle_merge_request_event(), // TODO implement
-        "note" => handle_note_event(&gitlab_event), // TODO implement
-        "pipeline" => handle_pipeline_event(&gitlab_event), // TODO implement
-        // "wiki_page" => handle_wiki_page_event(), // TODO implement
-        // "build" => handle_build_event(), // TODO implement
-        // TODO implement work_item (issue task list)
-        _ => handle_unknown_event(&gitlab_event),
-    };
+        // if message is empty, then we don't need to send it to telegram
+        if message.is_empty() {
+            return HttpResponse::Ok();
+        }
 
-    // if message is empty, then we don't need to send it to telegram
-    if message.is_empty() {
-        return HttpResponse::Ok();
+        log::info!("webhook_url: {}", &webhook_url);
+        let webhook = find_webhook_by_webhook_url(&webhook_url);
+
+        if webhook.is_none() {
+            log::error!("Webhook not found");
+            return HttpResponse::NotFound();
+        }
+        let webhook = webhook.unwrap();
+
+        // log chat_id
+        log::info!("Webhook: {}", webhook.webhook_url);
+        let chat_id = webhook.chat_id.expect("Chat id must be set");
+        log::info!("Chat id: {}", chat_id);
+
+        let chat = find_chat_by_id(webhook.chat_id.expect("Chat id must be set"));
+
+        if chat.is_none() {
+            log::error!("Chat not found");
+            return HttpResponse::NotFound();
+        }
+        let chat = chat.unwrap();
+
+        send_message_gitlab(
+            chat.telegram_id
+                .parse::<i64>()
+                .expect("CHAT_ID must be an integer"),
+            message,
+        )
+        .await
+        .unwrap();
+
+        // send message to telegram admin
+        send_message_gitlab(
+            env::var("TELEGRAM_ADMIN_CHAT_ID")
+                .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
+                .parse::<i64>()
+                .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID"),
+            format!("Event: {event_name:?}, Chat id: {chat_id}"),
+        )
+        .await
+        .unwrap();
+
+        HttpResponse::Ok()
+    } else {
+        HttpResponse::BadRequest()
     }
-
-    let webhook_url = &gitlab_webhook.webhook_url;
-    log::info!("webhook_url: {}", webhook_url);
-    let webhook = find_webhook_by_webhook_url(webhook_url);
-
-    if webhook.is_none() {
-        log::error!("Webhook not found");
-        return HttpResponse::NotFound();
-    }
-    let webhook = webhook.unwrap();
-
-    // log chat_id
-    log::info!("Webhook: {}", webhook.webhook_url);
-    let chat_id = webhook.chat_id.expect("Chat id must be set");
-    log::info!("Chat id: {}", chat_id);
-
-    let chat = find_chat_by_id(webhook.chat_id.expect("Chat id must be set"));
-
-    if chat.is_none() {
-        log::error!("Chat not found");
-        return HttpResponse::NotFound();
-    }
-    let chat = chat.unwrap();
-
-    send_message_gitlab(
-        chat.telegram_id
-            .parse::<i64>()
-            .expect("CHAT_ID must be an integer"),
-        message,
-    )
-    .await
-    .unwrap();
-
-    // send message to telegram admin
-    send_message_gitlab(
-        env::var("TELEGRAM_ADMIN_CHAT_ID")
-            .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
-            .parse::<i64>()
-            .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID"),
-        format!("Event: {event_name}, Chat id: {chat_id}"),
-    )
-    .await
-    .unwrap();
-
-    log::info!("bot sent message");
-    HttpResponse::Ok() //
 }

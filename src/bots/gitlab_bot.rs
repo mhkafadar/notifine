@@ -3,10 +3,10 @@ use std::env;
 use teloxide::dispatching::dialogue;
 use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::dptree::case;
-use teloxide::filter_command;
 use teloxide::prelude::*;
 use teloxide::types::{ChatMemberKind, ParseMode};
 use teloxide::utils::command::BotCommands;
+use teloxide::{filter_command};
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 
@@ -65,14 +65,20 @@ enum Command {
 //     Ok(())
 // }
 
-async fn handle_start_command(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
+async fn handle_start_command(_bot: Bot, _dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
     log::info!("Start command received");
+    let inviter_username = match msg.from() {
+        Some(user) => user.username.clone(),
+        None => None,
+    };
+
     handle_new_chat_and_start_command(
         msg.chat
             .id
             .to_string()
             .parse::<i64>()
             .expect("Error parsing chat id"),
+        inviter_username,
     )
     .await?;
 
@@ -89,7 +95,7 @@ async fn handle_bot_review(bot: Bot, dialogue: MyDialogue, msg: Message) -> Resp
     Ok(())
 }
 
-async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
+async fn handle_new_message(_bot: Bot, message: Message) -> ResponseResult<()> {
     let chat_id = message.chat.id.0;
 
     if let Some(text) = message.text() {
@@ -100,7 +106,7 @@ async fn handle_new_message(bot: Bot, message: Message) -> ResponseResult<()> {
     Ok(())
 }
 
-async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> ResponseResult<()> {
+async fn handle_my_chat_member_update(_bot: Bot, update: ChatMemberUpdated) -> ResponseResult<()> {
     let chat_id = update.chat.id.0;
 
     log::info!(
@@ -114,7 +120,7 @@ async fn handle_my_chat_member_update(bot: Bot, update: ChatMemberUpdated) -> Re
     if update.old_chat_member.kind == ChatMemberKind::Left
         && update.new_chat_member.kind == ChatMemberKind::Member
     {
-        handle_new_chat_and_start_command(chat_id).await?
+        handle_new_chat_and_start_command(chat_id, update.from.username).await?
     }
 
     log::info!(
@@ -138,7 +144,10 @@ pub async fn send_message_gitlab(chat_id: i64, message: String) -> ResponseResul
     Ok(())
 }
 
-async fn handle_new_chat_and_start_command(telegram_chat_id: i64) -> ResponseResult<()> {
+async fn handle_new_chat_and_start_command(
+    telegram_chat_id: i64,
+    inviter_username: Option<String>,
+) -> ResponseResult<()> {
     let webhook_url = get_webhook_url_or_create(telegram_chat_id);
 
     let message = if webhook_url.0.is_empty() {
@@ -163,13 +172,18 @@ async fn handle_new_chat_and_start_command(telegram_chat_id: i64) -> ResponseRes
     send_message_gitlab(telegram_chat_id, message).await?;
 
     if webhook_url.1 {
+        let inviter_username = match inviter_username {
+            Some(username) => username,
+            None => "unknown".to_string(),
+        };
+
         // send message to admin on telegram and inform new install
         send_message_gitlab(
             env::var("TELEGRAM_ADMIN_CHAT_ID")
                 .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
                 .parse::<i64>()
                 .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID"),
-            format!("New gitlab webhook added: {telegram_chat_id}"),
+            format!("New gitlab webhook added: {telegram_chat_id} by @{inviter_username}"),
         )
         .await?;
     }
