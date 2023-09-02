@@ -7,6 +7,7 @@ use tokio::task;
 
 pub mod bots;
 pub mod http_server;
+pub mod utils;
 pub mod webhooks;
 
 use crate::bots::beep_bot::run_beep_bot;

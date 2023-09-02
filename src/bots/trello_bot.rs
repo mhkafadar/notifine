@@ -339,7 +339,6 @@ pub async fn send_message_trello(chat_id: i64, message: String) -> ResponseResul
 
     bot.send_message(chat_id, message)
         .parse_mode(ParseMode::Html)
-        .send()
         .await?;
     Ok(())
 }
