@@ -1,4 +1,5 @@
 use crate::bots::gitlab_bot::send_message_gitlab;
+use crate::utils::telegram_admin::send_message_to_admin;
 use crate::webhooks::gitlab::webhook_handlers::job::handle_job_event;
 use crate::webhooks::gitlab::webhook_handlers::merge_request::handle_merge_request_event;
 use crate::webhooks::gitlab::webhook_handlers::{
@@ -150,11 +151,8 @@ pub async fn handle_gitlab_webhook(
         .unwrap();
 
         // send message to telegram admin
-        send_message_gitlab(
-            env::var("TELEGRAM_ADMIN_CHAT_ID")
-                .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
-                .parse::<i64>()
-                .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID"),
+        send_message_to_admin(
+            crate::bots::gitlab_bot::create_new_bot(),
             format!("Event: {event_name:?}, Chat id: {chat_id}"),
         )
         .await

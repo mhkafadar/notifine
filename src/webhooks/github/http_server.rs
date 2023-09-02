@@ -1,4 +1,5 @@
 use crate::bots::github_bot::send_message_github;
+use crate::utils::telegram_admin::send_message_to_admin;
 use crate::webhooks::github::webhook_handlers::{ping::handle_ping_event, push::handle_push_event};
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
@@ -57,18 +58,15 @@ pub async fn handle_github_webhook(
         .unwrap();
 
         // send message to telegram admin
-        send_message_github(
-            env::var("TELEGRAM_ADMIN_CHAT_ID")
-                .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
-                .parse::<i64>()
-                .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID"),
+        send_message_to_admin(
+            crate::bots::github_bot::create_new_bot(),
             format!("Event: {event_name:?}, Chat id: {chat_id}"),
         )
         .await
         .unwrap();
 
         log::info!("bot sent message");
-        HttpResponse::Ok() //
+        HttpResponse::Ok()
     } else {
         HttpResponse::BadRequest()
     }

@@ -1,4 +1,5 @@
 use crate::bots::beep_bot::send_message_beep;
+use crate::utils::telegram_admin::send_message_to_admin;
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use std::env;
@@ -52,11 +53,8 @@ pub async fn handle_beep_webhook(
     .unwrap();
 
     // send message to telegram admin
-    send_message_beep(
-        env::var("TELEGRAM_ADMIN_CHAT_ID")
-            .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
-            .parse::<i64>()
-            .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID"),
+    send_message_to_admin(
+        crate::bots::beep_bot::create_new_bot(),
         format!("Event: {event_name:?}, Chat id: {chat_id}"),
     )
     .await
