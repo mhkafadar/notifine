@@ -11,7 +11,7 @@ Bots for Telegram. Get notifications on new events like new commits, pipelines, 
 
 Notifine helps with events in your work tools like Gitlab, Github, and Trello. Just send a message to notifine or add it to your telegram group. It will provide you with a webhook link right away. Copy this link and paste it to your favorite tool (only GitLab now).
 
-- 🤖 [Gitlab bot](https://t.me/git_events_bot)
+- 🤖 [Gitlab bot](https://t.me/gitlab_notifine_bot)
 - 🤖 [Github bot](https://t.me/github_notifine_bot)
 - 🧭 Trello bot (Soon)
 
