@@ -14,7 +14,7 @@ struct MergeRequestDetails {
     url: String,
     source_branch: String,
     target_branch: String,
-    action: String,
+    action: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,8 +31,12 @@ pub fn handle_merge_request_event(body: &web::Bytes) -> String {
     let title = &merge_request_details.title;
     let source_branch = &merge_request_details.source_branch;
     let target_branch = &merge_request_details.target_branch;
-    let action = &merge_request_details.action;
     let sender = &merge_request_event.user.name;
+
+    let action = match &merge_request_details.action {
+        Some(action) => action,
+        None => "none",
+    };
 
     if action == "open" {
         format!(
@@ -59,7 +63,12 @@ pub fn handle_merge_request_event(body: &web::Bytes) -> String {
             "<b>{sender}</b> reopened merge request <a href=\"{url}\">{title}</a> \
              from <code>{source_branch}</code> to <code>{target_branch}</code>\n",
         )
+    } else if action == "none" {
+        format!(
+            "<b>{sender}</b> opened a new merge request <a href=\"{url}\">{title}</a> \
+             from <code>{source_branch}</code> to <code>{target_branch}</code> (Merge Request without any action)\n",
+        )
     } else {
-        String::new()
+        String::from("Unknown merge request action")
     }
 }
