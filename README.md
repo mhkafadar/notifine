@@ -64,6 +64,10 @@ Benefit Rust features of speed, type safety, async.
 If you want to host the bot on your private server.
 
 
+## Notes
+
+Gitlab sends a job event for each PR event. So, to avoid duplicate notifications, we use job events instead of PR events. If you want to test PR events, you should select Job event and click test on Gitlab.
+
 ## Ways to help
 
 Regardless of your experience level, there are ways that you can help:
