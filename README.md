@@ -25,25 +25,16 @@ Notifine helps with events in your work tools like Gitlab, Github, and Trello. J
 
 ## Available Notifications
 
-### GitHub
-
- ✅ Commit push  
- ✅ Branch creation, deletion  
- ✅ Issue creation, issue update
-
-
-### GitLab
+### Github and GitLab
 
  ✅ Commit push   
  ✅ Tag push  
  ✅ Pipeline   
- ✅ Pull request  
- ✅ Issue  
+ ✅ Pull request (via Job events)  
+ ✅ Job events  
+ ✅ Issue    
  ✅ Comment  
-
-### Coming Soon 
-
-⏳ Deployment notifications (May)
+ ✅ Deployment notifications
 
 ## ✨ Features
 
@@ -54,6 +45,11 @@ Backend (Rust) and infrastructure codes (AWS CDK) are open sources.
 **🚀 Uptime guarantee**
 
 There are some telegram bots available already. But they are not able to provide a continuous experience because of long downtimes. This is the main reason for the existence of notifine.
+
+Check the uptime status of the bots: https://stats.uptimerobot.com/5zQqxuMGNY
+
+<img src="./assets/uptime.png" alt="uptime robot screenshot" width="600px"/>
+
 
 **🎓 Educational purposes**
 
