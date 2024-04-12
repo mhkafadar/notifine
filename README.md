@@ -66,7 +66,10 @@ If you want to host the bot on your private server.
 
 ## Notes
 
-Gitlab sends a job event for each PR event. So, to avoid duplicate notifications, we use job events instead of PR events. If you want to test PR events, you should select Job event and click test on Gitlab.
+Gitlab sends a job event for each PR event. So, to avoid duplicate notifications, we use job events instead of PR events. If you want to test PR events, you should select Job event and click test on Gitlab
+
+**Telegram threads (topics) are now supported:**
+After adding the bot to the group, simply execute the /start command in the thread where you want to receive notifications.
 
 ## Ways to help
 
