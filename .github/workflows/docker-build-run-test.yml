@@ -1,0 +1,36 @@
+name: Docker Build and Test
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        run: docker build . -t notifine
+
+      - name: Run Docker container
+        run: docker run --name notifine_container -d notifine
+
+      - name: Check logs for DATABASE_URL must be set
+        id: check_logs
+        run: |
+          sleep 10 # Wait for the app to initialize and log errors if any
+          LOGS=$(docker logs notifine_container 2>&1)
+          echo "$LOGS"
+          if echo "$LOGS" | grep -q 'DATABASE_URL must be set'; then
+            echo "Test passed: 'DATABASE_URL must be set' found in logs"
+          else
+            echo "Test failed: 'DATABASE_URL must be set' not found in logs"
+            exit 1
+          fi
+
+      - name: Clean up Docker container
+        if: always()
+        run: docker rm -f notifine_container
