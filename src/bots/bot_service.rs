@@ -156,11 +156,11 @@ impl BotService {
         let chat_id = update.chat.id.0;
 
         log::info!(
-        "Received chat member update from {}: {:#?} {:#?}",
-        chat_id,
-        update.old_chat_member,
-        update.new_chat_member
-    );
+            "Received chat member update from {}: {:#?} {:#?}",
+            chat_id,
+            update.old_chat_member,
+            update.new_chat_member
+        );
 
         // bot joining a group or a new private chat
         if update.old_chat_member.kind == ChatMemberKind::Left
@@ -174,11 +174,6 @@ impl BotService {
                 .await?
         }
 
-        log::info!(
-        "Received a chat member update from {}: {:?}",
-        chat_id,
-        update.new_chat_member
-    );
         Ok(())
     }
 
