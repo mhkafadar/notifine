@@ -4,6 +4,7 @@ use dotenv::dotenv;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::env;
+use crate::schema::chats::thread_id;
 
 pub mod models;
 pub mod schema;
@@ -41,8 +42,17 @@ pub fn create_webhook(webhook_url: &str, name: &str, chat_id: i32) -> Webhook {
         .expect("Error saving new webhook")
 }
 
-pub fn get_webhook_url_or_create(telegram_chat_id: i64) -> WebhookInfo {
-    // find webhook by chat_id or create new one
+pub struct WebhookGetOrCreateInput<'a> {
+    pub telegram_chat_id: &'a str,
+    pub telegram_thread_id: Option<&'a str>,
+}
+
+pub fn get_webhook_url_or_create(input: WebhookGetOrCreateInput) -> WebhookInfo {
+    let WebhookGetOrCreateInput {
+        telegram_chat_id,
+        telegram_thread_id,
+    } = input;
+
     use self::schema::chats;
 
     let conn = &mut establish_connection();
@@ -55,6 +65,14 @@ pub fn get_webhook_url_or_create(telegram_chat_id: i64) -> WebhookInfo {
 
     if let Some(chat) = result {
         let webhook = find_webhook_by_chat_id(chat.id);
+
+        if telegram_thread_id.is_some() {
+            let chat = find_chat_by_id(chat.id).expect("Error loading chat");
+            if chat.thread_id.is_none() {
+                update_chat_thread_id(&chat, telegram_thread_id.unwrap());
+            }
+        }
+
         WebhookInfo {
             webhook_url: webhook.expect("Error loading webhook").webhook_url,
             is_new: false,
@@ -62,7 +80,13 @@ pub fn get_webhook_url_or_create(telegram_chat_id: i64) -> WebhookInfo {
     } else {
         let random_string = create_random_string();
         let name = "new_chat";
-        let new_chat = create_chat(&telegram_chat_id.to_string(), name, &random_string);
+        let new_chat = create_chat(CreateChatInput{
+            telegram_chat_id: &telegram_chat_id,
+            name,
+            webhook_url: &random_string,
+            telegram_thread_id
+        });
+        // let new_chat = create_chat(&chat_id.to_string(), name, &random_string);
         let new_webhook = create_webhook(&random_string, name, new_chat.id);
 
         WebhookInfo {
@@ -83,8 +107,17 @@ pub fn show_webhooks() -> Vec<Webhook> {
         .expect("Error loading webhooks")
 }
 
-pub fn create_chat(telegram_chat_id: &str, name: &str, webhook_url: &str) -> Chat {
-    use self::schema::chats;
+pub struct CreateChatInput<'a> {
+    pub telegram_chat_id: &'a str,
+    pub name:  &'a str,
+    pub webhook_url:  &'a str,
+    pub telegram_thread_id: Option< &'a str>,
+}
+
+pub fn create_chat(create_chat_input: CreateChatInput ) -> Chat {
+    let CreateChatInput { telegram_chat_id, name, webhook_url, telegram_thread_id } = create_chat_input;
+
+    use self::schema::chats::{table};
 
     let conn = &mut establish_connection();
 
@@ -92,12 +125,26 @@ pub fn create_chat(telegram_chat_id: &str, name: &str, webhook_url: &str) -> Cha
         telegram_id: telegram_chat_id,
         name,
         webhook_url,
+        thread_id: telegram_thread_id,
     };
 
-    diesel::insert_into(chats::table)
+
+    diesel::insert_into(table)
         .values(&new_chat)
         .get_result(conn)
         .expect("Error saving new chat")
+}
+
+pub fn update_chat_thread_id(chat: &Chat, telegram_thread_id: &str) -> Chat {
+    use self::schema::chats::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    diesel::update(chat)
+        // .filter(id.eq(chat.id))
+        .set(thread_id.eq(telegram_thread_id))
+        .get_result::<Chat>(conn)
+        .expect("Error updating chat")
 }
 
 pub fn find_webhook_by_webhook_url(url: &str) -> Option<Webhook> {
