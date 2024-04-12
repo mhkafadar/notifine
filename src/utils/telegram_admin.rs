@@ -2,7 +2,7 @@ use std::env;
 use teloxide::prelude::*;
 use teloxide::{Bot, RequestError};
 
-pub async fn send_message_to_admin(bot: Bot, message: String) -> Result<(), RequestError> {
+pub async fn send_message_to_admin(bot: &Bot, message: String) -> Result<(), RequestError> {
     if env::var("ADMIN_LOGS").expect("ADMIN_LOGS must be set") != "ACTIVE" {
         return Ok(());
     }

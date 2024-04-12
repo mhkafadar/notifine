@@ -2,25 +2,31 @@ use crate::schema::{chats, trello_tokens, webhooks};
 use diesel::data_types::PgTimestamp;
 use diesel::prelude::*;
 
-#[derive(Queryable, Identifiable)]
+#[derive(Queryable, Identifiable, Selectable)]
+#[diesel(table_name = crate::schema::chats)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Chat {
     pub id: i32,
     pub name: String,
     pub telegram_id: String,
     pub webhook_url: String,
+    pub thread_id: Option<String>,
 }
 
 #[derive(Insertable)]
 #[diesel(table_name = chats)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewChat<'a> {
     pub name: &'a str,
     pub telegram_id: &'a str,
     pub webhook_url: &'a str,
+    pub thread_id: Option<&'a str>,
 }
 
 #[derive(Queryable, Associations, Identifiable)]
-#[belongs_to(Chat)]
+#[diesel(belongs_to(Chat))]
 #[diesel(table_name = webhooks)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct Webhook {
     pub id: i32,
     pub name: String,
@@ -32,6 +38,7 @@ pub struct Webhook {
 
 #[derive(Insertable)]
 #[diesel(table_name = webhooks)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewWebhook<'a> {
     pub name: &'a str,
     pub webhook_url: &'a str,
@@ -40,6 +47,7 @@ pub struct NewWebhook<'a> {
 
 #[derive(Queryable, Identifiable)]
 #[diesel(table_name = trello_tokens)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct TrelloToken {
     pub id: i32,
     pub access_token: Option<String>,
@@ -51,6 +59,7 @@ pub struct TrelloToken {
 
 #[derive(Insertable)]
 #[diesel(table_name = trello_tokens)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewTrelloToken<'a> {
     pub access_token: Option<&'a str>,
     pub access_token_secret: Option<&'a str>,

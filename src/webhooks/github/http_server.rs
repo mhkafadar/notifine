@@ -1,9 +1,9 @@
-use crate::bots::github_bot::send_message_github;
 use crate::utils::telegram_admin::send_message_to_admin;
 use crate::webhooks::github::webhook_handlers::{ping::handle_ping_event, push::handle_push_event};
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use std::env;
+use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
 
 #[post("/github/{webhook_url}")]
 pub async fn handle_github_webhook(
@@ -48,24 +48,41 @@ pub async fn handle_github_webhook(
         }
         let chat = chat.unwrap();
 
-        send_message_github(
-            chat.telegram_id
-                .parse::<i64>()
-                .expect("CHAT_ID must be an integer"),
-            message,
+        let github_bot = BotService::new(
+            BotConfig {
+                bot_name: "Github".to_string(),
+                token: env::var("GITHUB_TELOXIDE_TOKEN").expect("GITHUB_TELOXIDE_TOKEN must be set"),
+            }
+        );
+
+        log::info!("Sending message to chat_id: {}", chat_id);
+        log::info!("Message: {}", message);
+        // log gitlab bot
+        log::info!("Github bot: {:?}", github_bot);
+
+        let thread_id = chat.thread_id.map(|tid| tid.parse::<i32>().ok()).flatten();
+
+        let result = github_bot.send_telegram_message(
+            TelegramMessage {
+                chat_id: chat.telegram_id.parse::<i64>().expect("CHAT_ID must be an integer"),
+                thread_id,
+                message,
+            },
         )
-        .await
-        .unwrap();
+            .await;
+
+        if let Err(e) = result {
+            log::error!("Failed to send Telegram message: {}", e);
+        }
 
         // send message to telegram admin
         send_message_to_admin(
-            crate::bots::github_bot::create_new_bot(),
+            &github_bot.bot,
             format!("Event: {event_name:?}, Chat id: {chat_id}"),
         )
-        .await
-        .unwrap();
+            .await
+            .unwrap();
 
-        log::info!("bot sent message");
         HttpResponse::Ok()
     } else {
         HttpResponse::BadRequest()
