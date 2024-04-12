@@ -13,7 +13,6 @@ pub mod webhooks;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::PgConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use teloxide::Bot;
 use crate::bots::bot_service::{BotConfig, BotService};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
@@ -27,11 +26,11 @@ async fn main() {
     pretty_env_logger::init();
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    // Make sure the database is up to date (create if it doesn't exist, or run the migrations)
+    // Make sure the database is up-to-date (create if it doesn't exist, or run the migrations)
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = diesel::r2d2::Pool::new(manager).unwrap();
     let mut connection = pool.get().unwrap();
-    connection.run_pending_migrations(MIGRATIONS);
+    connection.run_pending_migrations(MIGRATIONS).expect("Migrations failed");
 
     // task::spawn(run_gitlab_bot());
     task::spawn(BotService::new(
