@@ -12,7 +12,7 @@ pub async fn run_http_server() -> std::io::Result<()> {
             .service(handle_gitlab_webhook)
             .service(handle_github_webhook)
             .service(handle_beep_webhook)
-            // .service(handle_trello_callback)
+        // .service(handle_trello_callback)
     })
     .bind(("0.0.0.0", 8080))?
     .run()

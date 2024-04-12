@@ -79,11 +79,11 @@ pub fn get_webhook_url_or_create(input: WebhookGetOrCreateInput) -> WebhookInfo 
     } else {
         let random_string = create_random_string();
         let name = "new_chat";
-        let new_chat = create_chat(CreateChatInput{
+        let new_chat = create_chat(CreateChatInput {
             telegram_chat_id: &telegram_chat_id,
             name,
             webhook_url: &random_string,
-            telegram_thread_id
+            telegram_thread_id,
         });
         // let new_chat = create_chat(&chat_id.to_string(), name, &random_string);
         let new_webhook = create_webhook(&random_string, name, new_chat.id);
@@ -108,15 +108,20 @@ pub fn show_webhooks() -> Vec<Webhook> {
 
 pub struct CreateChatInput<'a> {
     pub telegram_chat_id: &'a str,
-    pub name:  &'a str,
-    pub webhook_url:  &'a str,
-    pub telegram_thread_id: Option< &'a str>,
+    pub name: &'a str,
+    pub webhook_url: &'a str,
+    pub telegram_thread_id: Option<&'a str>,
 }
 
-pub fn create_chat(create_chat_input: CreateChatInput ) -> Chat {
-    let CreateChatInput { telegram_chat_id, name, webhook_url, telegram_thread_id } = create_chat_input;
+pub fn create_chat(create_chat_input: CreateChatInput) -> Chat {
+    let CreateChatInput {
+        telegram_chat_id,
+        name,
+        webhook_url,
+        telegram_thread_id,
+    } = create_chat_input;
 
-    use self::schema::chats::{table};
+    use self::schema::chats::table;
 
     let conn = &mut establish_connection();
 
@@ -126,7 +131,6 @@ pub fn create_chat(create_chat_input: CreateChatInput ) -> Chat {
         webhook_url,
         thread_id: telegram_thread_id,
     };
-
 
     diesel::insert_into(table)
         .values(&new_chat)

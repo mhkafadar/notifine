@@ -1,8 +1,8 @@
+use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
 use crate::utils::telegram_admin::send_message_to_admin;
 use actix_web::{post, web, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use std::env;
-use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
 
 #[post("/beep/{webhook_url}")]
 pub async fn handle_beep_webhook(
@@ -42,12 +42,10 @@ pub async fn handle_beep_webhook(
     }
     let chat = chat.unwrap();
 
-    let beep_bot = BotService::new(
-        BotConfig {
-            bot_name: "Beep".to_string(),
-            token: env::var("BEEP_TELOXIDE_TOKEN").expect("BEEP_TELOXIDE_TOKEN must be set"),
-        }
-    );
+    let beep_bot = BotService::new(BotConfig {
+        bot_name: "Beep".to_string(),
+        token: env::var("BEEP_TELOXIDE_TOKEN").expect("BEEP_TELOXIDE_TOKEN must be set"),
+    });
 
     log::info!("Sending message to chat_id: {}", chat_id);
     log::info!("Message: {}", message);
@@ -56,13 +54,15 @@ pub async fn handle_beep_webhook(
 
     let thread_id = chat.thread_id.map(|tid| tid.parse::<i32>().ok()).flatten();
 
-    let result = beep_bot.send_telegram_message(
-        TelegramMessage {
-            chat_id: chat.telegram_id.parse::<i64>().expect("CHAT_ID must be an integer"),
+    let result = beep_bot
+        .send_telegram_message(TelegramMessage {
+            chat_id: chat
+                .telegram_id
+                .parse::<i64>()
+                .expect("CHAT_ID must be an integer"),
             thread_id,
             message,
-        },
-    )
+        })
         .await;
 
     if let Err(e) = result {
@@ -74,8 +74,8 @@ pub async fn handle_beep_webhook(
         &beep_bot.bot,
         format!("Event: {event_name:?}, Chat id: {chat_id}"),
     )
-        .await
-        .unwrap();
+    .await
+    .unwrap();
 
     HttpResponse::Ok()
 }

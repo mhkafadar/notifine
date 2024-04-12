@@ -10,10 +10,10 @@ pub mod http_server;
 pub mod utils;
 pub mod webhooks;
 
+use crate::bots::bot_service::{BotConfig, BotService};
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::PgConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use crate::bots::bot_service::{BotConfig, BotService};
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 pub type PgPooledConnection = PooledConnection<ConnectionManager<PgConnection>>;
@@ -30,27 +30,32 @@ async fn main() {
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = diesel::r2d2::Pool::new(manager).unwrap();
     let mut connection = pool.get().unwrap();
-    connection.run_pending_migrations(MIGRATIONS).expect("Migrations failed");
+    connection
+        .run_pending_migrations(MIGRATIONS)
+        .expect("Migrations failed");
 
     // task::spawn(run_gitlab_bot());
-    task::spawn(BotService::new(
-        BotConfig {
+    task::spawn(
+        BotService::new(BotConfig {
             bot_name: "Gitlab".to_string(),
             token: env::var("GITLAB_TELOXIDE_TOKEN").expect("GITLAB_TELOXIDE_TOKEN must be set"),
-        }
-    ).run_bot());
-    task::spawn(BotService::new(
-        BotConfig {
+        })
+        .run_bot(),
+    );
+    task::spawn(
+        BotService::new(BotConfig {
             bot_name: "Github".to_string(),
             token: env::var("GITHUB_TELOXIDE_TOKEN").expect("GITHUB_TELOXIDE_TOKEN must be set"),
-        }
-    ).run_bot());
-    task::spawn(BotService::new(
-        BotConfig {
+        })
+        .run_bot(),
+    );
+    task::spawn(
+        BotService::new(BotConfig {
             bot_name: "Beep".to_string(),
             token: env::var("BEEP_TELOXIDE_TOKEN").expect("BEEP_TELOXIDE_TOKEN must be set"),
-        }
-    ).run_bot());
+        })
+        .run_bot(),
+    );
     // task::spawn(run_github_bot());
     // task::spawn(run_beep_bot());
     // task::spawn(run_trello_bot());

@@ -1,15 +1,15 @@
 // bot_service.rs
+use crate::utils::telegram_admin::send_message_to_admin;
+use notifine::{get_webhook_url_or_create, WebhookGetOrCreateInput};
 use std::env;
-use teloxide::{Bot, dptree, filter_command};
-use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
 use teloxide::dispatching::dialogue::InMemStorage;
+use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
 use teloxide::dptree::case;
 use teloxide::macros::BotCommands;
 use teloxide::payloads::SendMessageSetters;
 use teloxide::prelude::{ChatId, ChatMemberUpdated, Message, Requester, ResponseResult, Update};
 use teloxide::types::{ChatMemberKind, ParseMode};
-use notifine::{get_webhook_url_or_create, WebhookGetOrCreateInput};
-use crate::utils::telegram_admin::send_message_to_admin;
+use teloxide::{dptree, filter_command, Bot};
 
 #[derive(Debug, Clone)]
 pub struct BotConfig {
@@ -44,8 +44,8 @@ pub enum State {
 
 #[derive(BotCommands, Clone)]
 #[command(
-rename_rule = "lowercase",
-description = "These commands are supported:"
+    rename_rule = "lowercase",
+    description = "These commands are supported:"
 )]
 enum Command {
     #[command(description = "starts!")]
@@ -74,14 +74,14 @@ impl BotService {
             thread_id,
             inviter_username,
         })
-            .await?;
+        .await?;
 
         Ok(())
     }
 
     async fn handle_new_chat_and_start_command(
         &self,
-        start_command: StartCommand
+        start_command: StartCommand,
     ) -> ResponseResult<()> {
         // get bot name from config
         let StartCommand {
@@ -96,7 +96,7 @@ impl BotService {
         let thread_id_ref = thread_id_str.as_ref().map(String::as_str);
 
         // let webhook_info = get_webhook_url_or_create(chat_id);
-        let webhook_info = get_webhook_url_or_create(WebhookGetOrCreateInput{
+        let webhook_info = get_webhook_url_or_create(WebhookGetOrCreateInput {
             telegram_chat_id: chat_id.to_string().as_str(),
             telegram_thread_id: thread_id_ref,
         });
@@ -132,11 +132,12 @@ impl BotService {
             )
         };
 
-        self.send_telegram_message(TelegramMessage  {
+        self.send_telegram_message(TelegramMessage {
             chat_id,
             thread_id,
             message,
-        }).await?;
+        })
+        .await?;
 
         if webhook_info.is_new {
             let inviter_username = inviter_username.unwrap_or_else(|| "unknown".to_string());
@@ -146,7 +147,7 @@ impl BotService {
                 &self.bot,
                 format!("New {bot_name} webhook added: {chat_id} by @{inviter_username}"),
             )
-                .await?;
+            .await?;
         }
 
         Ok(())
@@ -171,20 +172,26 @@ impl BotService {
                 thread_id: None,
                 inviter_username: update.from.username,
             })
-                .await?
+            .await?
         }
 
         Ok(())
     }
 
     pub async fn send_telegram_message(&self, message: TelegramMessage) -> ResponseResult<()> {
-        let TelegramMessage { chat_id, thread_id, message } = message;
+        let TelegramMessage {
+            chat_id,
+            thread_id,
+            message,
+        } = message;
 
         log::info!("Sending message to {}: {}", chat_id, message);
         let bot = &self.bot;
         let chat_id = ChatId(chat_id);
 
-        let mut request = bot.send_message(chat_id, &message).parse_mode(ParseMode::Html);
+        let mut request = bot
+            .send_message(chat_id, &message)
+            .parse_mode(ParseMode::Html);
 
         if let Some(tid) = thread_id {
             request = request.message_thread_id(tid);
@@ -202,21 +209,18 @@ impl BotService {
         let command_handler_self = self.clone();
         let chat_member_handler_self = self.clone();
 
-        let command_handler = filter_command::<Command, _>().branch(case![Command::Start].endpoint({
-            move |msg: Message| {
-                let bot_service = command_handler_self.clone();  // Use the pre-cloned `self`
-                async move {
-                    bot_service.handle_start_command(msg).await
+        let command_handler =
+            filter_command::<Command, _>().branch(case![Command::Start].endpoint({
+                move |msg: Message| {
+                    let bot_service = command_handler_self.clone(); // Use the pre-cloned `self`
+                    async move { bot_service.handle_start_command(msg).await }
                 }
-            }
-        }));
+            }));
 
         let chat_member_handler = {
             move |update: ChatMemberUpdated| {
-                let bot_service = chat_member_handler_self.clone();  // Use the pre-cloned `self`
-                async move {
-                    bot_service.handle_my_chat_member_update(update).await
-                }
+                let bot_service = chat_member_handler_self.clone(); // Use the pre-cloned `self`
+                async move { bot_service.handle_my_chat_member_update(update).await }
             }
         };
 
@@ -233,5 +237,4 @@ impl BotService {
 
         log::info!("Closing bot... Goodbye!");
     }
-
 }
