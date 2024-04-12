@@ -4,7 +4,6 @@ use dotenv::dotenv;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::env;
-use crate::schema::chats::thread_id;
 
 pub mod models;
 pub mod schema;

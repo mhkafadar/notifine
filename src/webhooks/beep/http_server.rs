@@ -1,5 +1,5 @@
 use crate::utils::telegram_admin::send_message_to_admin;
-use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
+use actix_web::{post, web, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use std::env;
 use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
@@ -7,7 +7,6 @@ use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
 #[post("/beep/{webhook_url}")]
 pub async fn handle_beep_webhook(
     webhook_url: web::Path<String>,
-    req: HttpRequest,
     body: web::Bytes,
 ) -> impl Responder {
     let event_name = "beep";
