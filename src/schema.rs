@@ -56,9 +56,4 @@ diesel::table! {
 
 diesel::joinable!(webhooks -> chats (chat_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    chats,
-    health_urls,
-    trello_tokens,
-    webhooks,
-);
+diesel::allow_tables_to_appear_in_same_query!(chats, health_urls, trello_tokens, webhooks,);
