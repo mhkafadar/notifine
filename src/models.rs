@@ -1,4 +1,4 @@
-use crate::schema::{chats, trello_tokens, webhooks};
+use crate::schema::{chats, health_urls, trello_tokens, webhooks};
 use diesel::data_types::PgTimestamp;
 use diesel::prelude::*;
 
@@ -66,4 +66,25 @@ pub struct NewTrelloToken<'a> {
     pub token_key: Option<&'a str>,
     pub token_secret: Option<&'a str>,
     pub telegram_user_id: Option<&'a str>,
+}
+
+#[derive(Debug, Queryable, Identifiable)]
+#[diesel(table_name = health_urls)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct HealthUrl {
+    pub id: i32,
+    pub url: String,
+    pub chat_id: i32,
+    pub status_code: i32,
+    pub created_at: PgTimestamp,
+    pub updated_at: PgTimestamp,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = health_urls)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewHealthUrl<'a> {
+    pub url: &'a str,
+    pub chat_id: i32,
+    pub status_code: i32,
 }

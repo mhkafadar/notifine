@@ -72,13 +72,17 @@ pub async fn handle_github_webhook(
             .await;
 
         if let Err(e) = result {
-            log::error!("Failed to send Telegram message: {}", e);
+            log::error!(
+                "Failed to send Telegram message: {} for webhook_url: {}",
+                e,
+                &webhook_url
+            );
         }
 
-        // send message to telegram admin
         send_message_to_admin(
             &github_bot.bot,
             format!("Event: {event_name:?}, Chat id: {chat_id}"),
+            50,
         )
         .await
         .unwrap();

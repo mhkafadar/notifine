@@ -15,6 +15,17 @@ diesel::table! {
 }
 
 diesel::table! {
+    health_urls (id) {
+        id -> Int4,
+        url -> Text,
+        chat_id -> Int4,
+        status_code -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     trello_tokens (id) {
         id -> Int4,
         #[max_length = 255]
@@ -45,4 +56,9 @@ diesel::table! {
 
 diesel::joinable!(webhooks -> chats (chat_id));
 
-diesel::allow_tables_to_appear_in_same_query!(chats, trello_tokens, webhooks,);
+diesel::allow_tables_to_appear_in_same_query!(
+    chats,
+    health_urls,
+    trello_tokens,
+    webhooks,
+);
