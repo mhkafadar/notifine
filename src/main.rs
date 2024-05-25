@@ -1,5 +1,4 @@
-// use crate::bots::gitlab_bot::run_gitlab_bot;
-use crate::http_server::run_http_server;
+use crate::{http_server::run_http_server, services::uptime_checker::run_uptime_checker};
 
 use dotenv::dotenv;
 use std::env;
@@ -7,6 +6,7 @@ use tokio::task;
 
 pub mod bots;
 pub mod http_server;
+pub mod services;
 pub mod utils;
 pub mod webhooks;
 
@@ -34,7 +34,6 @@ async fn main() {
         .run_pending_migrations(MIGRATIONS)
         .expect("Migrations failed");
 
-    // task::spawn(run_gitlab_bot());
     task::spawn(
         BotService::new(BotConfig {
             bot_name: "Gitlab".to_string(),
@@ -56,6 +55,13 @@ async fn main() {
         })
         .run_bot(),
     );
+
+    task::spawn(bots::uptime_bot::run_bot());
+
+    task::spawn(async {
+        run_uptime_checker().await;
+    });
+
     // task::spawn(run_github_bot());
     // task::spawn(run_beep_bot());
     // task::spawn(run_trello_bot());

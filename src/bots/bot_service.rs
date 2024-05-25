@@ -109,25 +109,15 @@ impl BotService {
                       https://github.com/mhkafadar/notifine/issues/new"
                 .to_string()
         } else {
-            // format!(
-            //     "Hi there! \
-            //           To setup notifications for \
-            //           this chat your GitLab project(repo), \
-            //           open Settings -> Webhooks and add this \
-            //           URL: {}/gitlab/{}",
-            //     env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
-            //     webhook_info.webhook_url
-            // )
-
             format!(
                 "Hi there! \
                  To setup notifications for \
                  this chat your {} project(repo), \
                  open Settings -> Webhooks and add this \
                  URL: {}/{}/{}",
-                bot_name, // Use the bot_name directly here
+                bot_name,
                 env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
-                bot_name.to_lowercase(), // Convert bot_name to lowercase for the URL part
+                bot_name.to_lowercase(),
                 webhook_info.webhook_url
             )
         };
@@ -142,10 +132,10 @@ impl BotService {
         if webhook_info.is_new {
             let inviter_username = inviter_username.unwrap_or_else(|| "unknown".to_string());
 
-            // send message to admin on telegram and inform new install
             send_message_to_admin(
                 &self.bot,
                 format!("New {bot_name} webhook added: {chat_id} by @{inviter_username}"),
+                10,
             )
             .await?;
         }

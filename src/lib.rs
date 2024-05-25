@@ -174,6 +174,18 @@ pub fn find_chat_by_id(chat_id: i32) -> Option<Chat> {
         .expect("Error loading chat")
 }
 
+pub fn find_chat_by_telegram_chat_id(telegram_chat_id: &str) -> Option<Chat> {
+    use schema::chats::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    chats
+        .filter(telegram_id.eq(telegram_chat_id))
+        .first::<Chat>(conn)
+        .optional()
+        .expect("Error loading chat")
+}
+
 pub fn find_webhook_by_chat_id(chat_id: i32) -> Option<Webhook> {
     use schema::webhooks;
 
@@ -251,10 +263,73 @@ pub fn update_trello_token_access_token(
         .expect("Error updating trello token")
 }
 
+pub fn create_health_url(new_url: &str, chat_id: i32, status_code: i32) -> HealthUrl {
+    use self::schema::health_urls;
+
+    let conn = &mut establish_connection();
+
+    let new_health_endpoint = NewHealthUrl {
+        url: new_url,
+        status_code,
+        chat_id,
+    };
+
+    diesel::insert_into(health_urls::table)
+        .values(&new_health_endpoint)
+        .get_result(conn)
+        .expect("Error saving new health endpoint")
+}
+
 fn create_random_string() -> String {
     thread_rng()
         .sample_iter(&Alphanumeric)
         .take(8)
         .map(char::from)
         .collect()
+}
+
+pub fn find_chat_by_chat_id(chat_id: i32) -> Option<Chat> {
+    use schema::chats::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    chats
+        .filter(id.eq(chat_id))
+        .first::<Chat>(conn)
+        .optional()
+        .expect("Error loading chat")
+}
+
+pub fn get_all_health_urls() -> Vec<HealthUrl> {
+    use self::schema::health_urls::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    health_urls
+        .load::<HealthUrl>(conn)
+        .expect("Error loading health URLs")
+}
+
+pub fn update_health_url_status(id_to_update: i32, new_status_code: i32) -> HealthUrl {
+    use self::schema::health_urls::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    diesel::update(health_urls.filter(id.eq(id_to_update)))
+        .set(status_code.eq(new_status_code))
+        .get_result(conn)
+        .expect("Error updating health URL status")
+}
+
+pub fn get_health_url_by_chat_id_and_url(chat_id_value: i64, url_value: &str) -> Option<HealthUrl> {
+    use self::schema::health_urls::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    health_urls
+        .filter(chat_id.eq(&(chat_id_value as i32)))
+        .filter(url.eq(url_value))
+        .first::<HealthUrl>(conn)
+        .optional()
+        .expect("Error loading health URL")
 }

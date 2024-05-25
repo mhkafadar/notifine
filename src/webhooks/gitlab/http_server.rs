@@ -175,6 +175,7 @@ pub async fn handle_gitlab_webhook(
         send_message_to_admin(
             &gitlab_bot.bot,
             format!("Event: {event_name:?}, Chat id: {chat_id}"),
+            50,
         )
         .await
         .unwrap();

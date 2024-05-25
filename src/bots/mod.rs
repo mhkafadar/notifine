@@ -3,3 +3,4 @@ pub mod bot_service;
 pub mod github_bot;
 pub mod gitlab_bot;
 pub mod trello_bot;
+pub mod uptime_bot;
