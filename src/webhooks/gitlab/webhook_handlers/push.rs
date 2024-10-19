@@ -33,11 +33,6 @@ struct Author {
 
 pub fn handle_push_event(body: &web::Bytes) -> String {
     let push_event: PushEvent = serde_json::from_slice(body).unwrap();
-    // check if it is a new branch push
-    // if push_event.before.as_ref().unwrap() == "0000000000000000000000000000000000000000" {
-    //     return new_branch_push(&gitlab_event);
-    // }
-
     let CreateFirstRow {
         mut commit_paragraph,
         delete_branch_event,
@@ -78,10 +73,10 @@ fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
     let sender = &push_event.user_name;
     let mut delete_branch_event = false;
     let commits_length = push_event.commits.len();
-    let commit_or_commits = if push_event.commits.len() > 1 {
-        "commits"
-    } else {
+    let commit_or_commits = if commits_length == 1 {
         "commit"
+    } else {
+        "commits"
     };
 
     let commit_paragraph = if push_event.before == "0000000000000000000000000000000000000000" {
@@ -105,5 +100,90 @@ fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
     CreateFirstRow {
         commit_paragraph,
         delete_branch_event,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::web;
+    use serde_json::json;
+
+    #[test]
+    fn test_create_first_row_create_branch() {
+        let push_event = PushEvent {
+            before: "0000000000000000000000000000000000000000".to_string(),
+            after: "abcdef1234567890".to_string(),
+            ref_field: "refs/heads/main".to_string(),
+            project: Project {
+                name: "TestProject".to_string(),
+                homepage: "http://example.com".to_string(),
+            },
+            commits: vec![],
+            user_name: "test_user".to_string(),
+        };
+
+        let result = create_first_row(&push_event);
+
+        assert_eq!(
+            result.commit_paragraph,
+            "<b>test_user</b> created branch <a href=\"http://example.com/tree/main\">main</a> \
+              and pushed 0 commits to \
+            <a href=\"http://example.com/tree/main\">TestProject:main</a>\n\n"
+        );
+        assert!(!result.delete_branch_event);
+    }
+
+    #[test]
+    fn test_create_first_row_delete_branch() {
+        let push_event = PushEvent {
+            before: "abcdef1234567890".to_string(),
+            after: "0000000000000000000000000000000000000000".to_string(),
+            ref_field: "refs/heads/main".to_string(),
+            project: Project {
+                name: "TestProject".to_string(),
+                homepage: "http://example.com".to_string(),
+            },
+            commits: vec![],
+            user_name: "test_user".to_string(),
+        };
+
+        let result = create_first_row(&push_event);
+
+        assert_eq!(
+            result.commit_paragraph,
+            "<b>test_user</b> deleted branch <a href=\"http://example.com/tree/main\">TestProject:main</a>\n\n"
+        );
+        assert!(result.delete_branch_event);
+    }
+
+    #[test]
+    fn test_create_first_row_normal_push() {
+        let push_event = PushEvent {
+            before: "abcdef1234567890".to_string(),
+            after: "1234567890abcdef".to_string(),
+            ref_field: "refs/heads/main".to_string(),
+            project: Project {
+                name: "TestProject".to_string(),
+                homepage: "http://example.com".to_string(),
+            },
+            commits: vec![Commit {
+                message: "Initial commit".to_string(),
+                url: "http://example.com/commit/123".to_string(),
+                author: Author {
+                    name: "test_author".to_string(),
+                },
+            }],
+            user_name: "test_user".to_string(),
+        };
+
+        let result = create_first_row(&push_event);
+
+        assert_eq!(
+            result.commit_paragraph,
+            "<b>test_user</b> pushed 1 commit to \
+            <a href=\"http://example.com/tree/main\">TestProject:main</a>\n\n"
+        );
+        assert!(!result.delete_branch_event);
     }
 }

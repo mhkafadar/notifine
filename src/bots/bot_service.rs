@@ -83,7 +83,6 @@ impl BotService {
         &self,
         start_command: StartCommand,
     ) -> ResponseResult<()> {
-        // get bot name from config
         let StartCommand {
             chat_id,
             thread_id,
@@ -95,7 +94,6 @@ impl BotService {
         let thread_id_str = thread_id.map(|tid| tid.to_string());
         let thread_id_ref = thread_id_str.as_ref().map(String::as_str);
 
-        // let webhook_info = get_webhook_url_or_create(chat_id);
         let webhook_info = get_webhook_url_or_create(WebhookGetOrCreateInput {
             telegram_chat_id: chat_id.to_string().as_str(),
             telegram_thread_id: thread_id_ref,
@@ -175,12 +173,14 @@ impl BotService {
             message,
         } = message;
 
-        log::info!("Sending message to {}: {}", chat_id, message);
+        let html_encoded_message = html_escape::encode_text(&message);
+
+        log::info!("Sending message to {}: {}", chat_id, html_encoded_message);
         let bot = &self.bot;
         let chat_id = ChatId(chat_id);
 
         let mut request = bot
-            .send_message(chat_id, &message)
+            .send_message(chat_id, html_encoded_message)
             .parse_mode(ParseMode::Html);
 
         if let Some(tid) = thread_id {

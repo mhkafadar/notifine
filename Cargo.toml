@@ -21,3 +21,4 @@ oauth = { version = "0.6", package = "oauth1-request" }
 ureq = { version="2.9.6", features = ["json"] }
 url = "2.5.0"
 diesel_migrations = "2.1.0"
+html-escape = "0.2.13"
