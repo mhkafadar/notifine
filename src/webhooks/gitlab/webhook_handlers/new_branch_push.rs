@@ -28,7 +28,7 @@ pub fn new_branch_push(gitlab_event: &GitlabEvent) -> String {
         log::info!("Commit author: {}", commit.author.name);
 
         let commit_url = &commit.url;
-        let commit_message = encode_text(&commit.message);
+        let commit_message = encode_text(commit.message.trim_end());
         let commit_author_name = &commit.author.name;
 
         commit_paragraph.push_str(&format!(
