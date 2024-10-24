@@ -1,4 +1,5 @@
 use actix_web::web;
+use html_escape::encode_text;
 use serde::Deserialize;
 use ureq::serde_json;
 
@@ -58,7 +59,7 @@ pub fn handle_push_event(body: &web::Bytes) -> String {
         log::info!("Commit author: {}", commit.author.name);
 
         let commit_url = &commit.url;
-        let commit_message = &commit.message.trim_end();
+        let commit_message = encode_text(&commit.message);
         let commit_author_name = &commit.author.name;
 
         commit_paragraph.push_str(&format!(
