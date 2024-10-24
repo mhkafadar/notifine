@@ -173,14 +173,12 @@ impl BotService {
             message,
         } = message;
 
-        let html_encoded_message = html_escape::encode_text(&message);
-
-        log::info!("Sending message to {}: {}", chat_id, html_encoded_message);
+        log::info!("Sending message to {}: {}", chat_id, message);
         let bot = &self.bot;
         let chat_id = ChatId(chat_id);
 
         let mut request = bot
-            .send_message(chat_id, html_encoded_message)
+            .send_message(chat_id, &message)
             .parse_mode(ParseMode::Html);
 
         if let Some(tid) = thread_id {
