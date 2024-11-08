@@ -60,7 +60,7 @@ pub fn handle_push_event(body: &web::Bytes) -> String {
 
         let commit_url = &commit.url;
         let commit_message = encode_text(commit.message.trim_end());
-        let commit_author_name = &commit.author.name;
+        let commit_author_name = encode_text(&commit.author.name);
 
         commit_paragraph.push_str(&format!(
             "<b>{commit_author_name}</b>: \
