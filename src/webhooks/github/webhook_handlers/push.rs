@@ -9,7 +9,7 @@ pub struct PushEvent {
     forced: bool,
     commits: Vec<Commit>,
     #[serde(rename = "ref")]
-    pub ref_field: String,
+    ref_field: String,
     before: String,
     after: String,
 }
