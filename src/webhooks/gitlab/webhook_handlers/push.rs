@@ -8,7 +8,7 @@ struct PushEvent {
     before: String,
     after: String,
     #[serde(rename = "ref")]
-    pub ref_field: String,
+    ref_field: String,
     project: Project,
     commits: Vec<Commit>,
     user_name: String,
@@ -107,8 +107,6 @@ fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::web;
-    use serde_json::json;
 
     #[test]
     fn test_create_first_row_create_branch() {
