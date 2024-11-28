@@ -30,14 +30,29 @@ struct NoteDetails {
     note: String,
 }
 
-pub fn handle_note_event(body: &web::Bytes) -> String {
+trait ProcessNote {
+    fn process(&self, full_message: bool) -> String;
+}
+
+impl ProcessNote for NoteEvent {
+    fn process(&self, full_message: bool) -> String {
+        let note = encode_text(&self.object_attributes.note);
+        if full_message {
+            note.into_owned()
+        } else {
+            note.chars().take(100).collect()
+        }
+    }
+}
+
+pub fn handle_note_event(body: &web::Bytes, full_message: bool) -> String {
     let note_event: NoteEvent = serde_json::from_slice(body).unwrap();
 
     let user_name = &note_event.user.name;
     let note_details = &note_event.object_attributes;
     let url = &note_details.url;
     let noteable_type = &note_details.noteable_type;
-    let note = encode_text(&note_details.note);
+    let note = note_event.process(full_message);
 
     let noteable_type = match noteable_type.as_str() {
         "Issue" => NoteableType::Issue,
