@@ -1,3 +1,5 @@
+use html_escape::encode_text;
+
 use crate::webhooks::gitlab::http_server::GitlabEvent;
 
 pub fn new_branch_push(gitlab_event: &GitlabEvent) -> String {
@@ -26,8 +28,8 @@ pub fn new_branch_push(gitlab_event: &GitlabEvent) -> String {
         log::info!("Commit author: {}", commit.author.name);
 
         let commit_url = &commit.url;
-        let commit_message = &commit.message.trim_end();
-        let commit_author_name = &commit.author.name;
+        let commit_message = encode_text(commit.message.trim_end());
+        let commit_author_name = encode_text(&commit.author.name);
 
         commit_paragraph.push_str(&format!(
             "<b>{commit_author_name}</b>: \
