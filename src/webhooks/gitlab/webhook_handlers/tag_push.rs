@@ -5,7 +5,7 @@ use ureq::serde_json;
 #[derive(Debug, Deserialize)]
 struct TagPushEvent {
     #[serde(rename = "ref")]
-    pub ref_field: String,
+    ref_field: String,
     project: Project,
     user_name: String,
 }
