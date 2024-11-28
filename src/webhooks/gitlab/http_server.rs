@@ -102,12 +102,14 @@ pub async fn handle_gitlab_webhook(
     body: web::Bytes,
 ) -> impl Responder {
     if let Some(event_name) = req.headers().get("x-gitlab-event") {
+        let full_message = req.query_string().contains("full_message=true");
+
         log::info!("Event: {:?}", event_name);
         let message = match event_name.to_str() {
             Ok("Push Hook") => handle_push_event(&body),
             Ok("Tag Push Hook") => handle_tag_push_event(&body),
             Ok("Issue Hook") => handle_issue_event(&body),
-            Ok("Note Hook") => handle_note_event(&body),
+            Ok("Note Hook") => handle_note_event(&body, full_message),
             // Ok("Pipeline Hook") => handle_pipeline_event(&body),
             Ok("Merge Request Hook") => handle_merge_request_event(&body),
             Ok("Job Hook") => handle_job_event(&body),
