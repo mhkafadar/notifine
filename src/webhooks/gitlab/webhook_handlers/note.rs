@@ -37,10 +37,14 @@ trait ProcessNote {
 impl ProcessNote for NoteEvent {
     fn process(&self, full_message: bool) -> String {
         let note = encode_text(&self.object_attributes.note);
-        if full_message {
+        let char_count = note.chars().count();
+        
+        if full_message || char_count <= 100 {
             note.into_owned()
         } else {
-            note.chars().take(100).collect()
+            let mut truncated: String = note.chars().take(100).collect();
+            truncated.push_str(&format!("<a href=\"{}\">...</a>", self.object_attributes.url));
+            truncated
         }
     }
 }
@@ -80,5 +84,71 @@ pub fn handle_note_event(body: &web::Bytes, full_message: bool) -> String {
         NoteableType::Other(type_name) => {
             format!("<b>{user_name}</b> commented on a <a href=\"{url}\">{type_name}</a>\n{note}\n")
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use html_escape::encode_text;
+
+    const TEST_LONG_NOTE: &str = "This is a very long test note that should definitely exceed the 100 character limit. \
+        We want to make sure the truncation is working correctly. This text should be cut off in the truncated version.";
+
+    #[test]
+    fn test_process_note_full_message() {
+        let note_event = NoteEvent {
+            user: User {
+                name: String::from("test_user"),
+            },
+            object_attributes: NoteDetails {
+                url: String::from("http://example.com"),
+                noteable_type: String::from("Issue"),
+                note: String::from(TEST_LONG_NOTE),
+            },
+        };
+
+        let result = note_event.process(true);
+        assert_eq!(result, encode_text(TEST_LONG_NOTE).into_owned());
+    }
+
+    #[test]
+    fn test_process_note_truncated_message() {
+        let note_event = NoteEvent {
+            user: User {
+                name: String::from("test_user"),
+            },
+            object_attributes: NoteDetails {
+                url: String::from("http://example.com"),
+                noteable_type: String::from("Issue"),
+                note: String::from(TEST_LONG_NOTE),
+            },
+        };
+
+        let result = note_event.process(false);
+        let expected_truncated = format!(
+            "{}<a href=\"http://example.com\">...</a>",
+            encode_text(TEST_LONG_NOTE).chars().take(100).collect::<String>()
+        );
+        assert_eq!(result, expected_truncated);
+    }
+
+    #[test]
+    fn test_process_note_short_message() {
+        let short_note = "This is a short note that doesn't need truncation.";
+        let note_event = NoteEvent {
+            user: User {
+                name: String::from("test_user"),
+            },
+            object_attributes: NoteDetails {
+                url: String::from("http://example.com"),
+                noteable_type: String::from("Issue"),
+                note: String::from(short_note),
+            },
+        };
+
+        let result = note_event.process(false);
+        assert_eq!(result, encode_text(short_note).into_owned());
+        assert!(!result.contains("...")); 
     }
 }
