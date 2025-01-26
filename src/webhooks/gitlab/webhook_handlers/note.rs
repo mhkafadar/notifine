@@ -38,12 +38,15 @@ impl ProcessNote for NoteEvent {
     fn process(&self, full_message: bool) -> String {
         let note = encode_text(&self.object_attributes.note);
         let char_count = note.chars().count();
-        
+
         if full_message || char_count <= 100 {
             note.into_owned()
         } else {
             let mut truncated: String = note.chars().take(100).collect();
-            truncated.push_str(&format!("<a href=\"{}\">...</a>", self.object_attributes.url));
+            truncated.push_str(&format!(
+                "<a href=\"{}\">...</a>",
+                self.object_attributes.url
+            ));
             truncated
         }
     }
@@ -128,7 +131,10 @@ mod tests {
         let result = note_event.process(false);
         let expected_truncated = format!(
             "{}<a href=\"http://example.com\">...</a>",
-            encode_text(TEST_LONG_NOTE).chars().take(100).collect::<String>()
+            encode_text(TEST_LONG_NOTE)
+                .chars()
+                .take(100)
+                .collect::<String>()
         );
         assert_eq!(result, expected_truncated);
     }
@@ -149,6 +155,6 @@ mod tests {
 
         let result = note_event.process(false);
         assert_eq!(result, encode_text(short_note).into_owned());
-        assert!(!result.contains("...")); 
+        assert!(!result.contains("..."));
     }
 }
