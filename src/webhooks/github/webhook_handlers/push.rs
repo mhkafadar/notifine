@@ -1,7 +1,7 @@
 use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
-use ureq::serde_json;
+use super::utils::parse_webhook_payload;
 
 #[derive(Debug, Deserialize)]
 pub struct PushEvent {
@@ -39,8 +39,14 @@ struct Sender {
 }
 
 pub fn handle_push_event(body: &web::Bytes) -> String {
-    let push_event: PushEvent = serde_json::from_slice(body).unwrap();
-    log::info!("Push event");
+    let push_event: PushEvent = match parse_webhook_payload(body) {
+        Ok(event) => event,
+        Err(e) => {
+            log::error!("Failed to parse push event: {}", e);
+            log::error!("Raw payload: {}", String::from_utf8_lossy(body));
+            return String::new();
+        }
+    };
 
     let CreateFirstRow {
         first_row,
