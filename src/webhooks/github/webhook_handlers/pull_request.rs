@@ -1,7 +1,7 @@
+use super::utils::parse_webhook_payload;
 use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
-use super::utils::parse_webhook_payload;
 
 #[derive(Debug, Deserialize)]
 pub struct PullRequestEvent {
@@ -46,7 +46,7 @@ pub fn handle_pull_request_event(body: &web::Bytes) -> String {
             return String::new();
         }
     };
-    
+
     let action = &pr_event.action;
     let pr_title = encode_text(&pr_event.pull_request.title);
     let pr_url = &pr_event.pull_request.html_url;
@@ -74,4 +74,4 @@ pub fn handle_pull_request_event(body: &web::Bytes) -> String {
         ),
         _ => String::new(),
     }
-} 
+}

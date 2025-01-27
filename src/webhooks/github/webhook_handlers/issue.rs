@@ -1,7 +1,7 @@
+use super::utils::parse_webhook_payload;
 use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
-use super::utils::parse_webhook_payload;
 
 #[derive(Debug, Deserialize)]
 pub struct IssueEvent {
@@ -59,4 +59,4 @@ pub fn handle_issue_event(body: &web::Bytes) -> String {
         ),
         _ => String::new(),
     }
-} 
+}

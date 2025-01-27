@@ -1,7 +1,7 @@
+use super::utils::parse_webhook_payload;
 use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
-use super::utils::parse_webhook_payload;
 
 #[derive(Debug, Deserialize)]
 pub struct GollumEvent {
@@ -37,7 +37,7 @@ pub fn handle_wiki_event(body: &web::Bytes) -> String {
             return String::new();
         }
     };
-    
+
     if wiki_event.pages.is_empty() {
         return String::new();
     }
@@ -45,7 +45,7 @@ pub fn handle_wiki_event(body: &web::Bytes) -> String {
     let repository_name = &wiki_event.repository.name;
     let repository_url = &wiki_event.repository.html_url;
     let sender = &wiki_event.sender.login;
-    
+
     // GitHub can send multiple page updates in a single event
     let mut messages = Vec::new();
     for page in &wiki_event.pages {
@@ -59,4 +59,4 @@ pub fn handle_wiki_event(body: &web::Bytes) -> String {
     }
 
     messages.join("\n")
-} 
+}

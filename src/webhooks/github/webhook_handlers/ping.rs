@@ -1,6 +1,6 @@
+use super::utils::parse_webhook_payload;
 use actix_web::web;
 use serde::Deserialize;
-use super::utils::parse_webhook_payload;
 
 #[derive(Debug, Deserialize)]
 pub struct PingEvent {
@@ -46,21 +46,23 @@ pub fn handle_ping_event(body: &web::Bytes) -> String {
     // For organization webhooks, repository might be None
     let repo_info = ping_event.repository.as_ref().map_or_else(
         || "your organization".to_string(),
-        |repo| format!("repository: {}", repo.full_name)
+        |repo| format!("repository: {}", repo.full_name),
     );
 
     let setup_by = ping_event.sender.as_ref().map_or_else(
         || "".to_string(),
-        |sender| format!(" This webhook was set up by <a href=\"https://github.com/{}\">{}</a>.", sender.login, sender.login)
+        |sender| {
+            format!(
+                " This webhook was set up by <a href=\"https://github.com/{}\">{}</a>.",
+                sender.login, sender.login
+            )
+        },
     );
 
     format!(
         "🎉 Congratulations! A new webhook has been successfully configured for {}. \
         The webhook URL is configured to: {}.{} \
         \nZen message from GitHub: {}",
-        repo_info,
-        ping_event.hook.config.url,
-        setup_by,
-        ping_event.zen
+        repo_info, ping_event.hook.config.url, setup_by, ping_event.zen
     )
 }

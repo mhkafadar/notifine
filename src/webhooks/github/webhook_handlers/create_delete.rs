@@ -1,6 +1,6 @@
+use super::utils::parse_webhook_payload;
 use actix_web::web;
 use serde::Deserialize;
-use super::utils::parse_webhook_payload;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDeleteEvent {
@@ -31,7 +31,7 @@ pub fn handle_create_event(body: &web::Bytes) -> String {
             return String::new();
         }
     };
-    
+
     // We only care about branch and tag events
     if !["branch", "tag"].contains(&create_event.ref_type.as_str()) {
         return String::new();
@@ -58,7 +58,7 @@ pub fn handle_delete_event(body: &web::Bytes) -> String {
             return String::new();
         }
     };
-    
+
     // We only care about branch and tag events
     if !["branch", "tag"].contains(&delete_event.ref_type.as_str()) {
         return String::new();
@@ -73,4 +73,4 @@ pub fn handle_delete_event(body: &web::Bytes) -> String {
     format!(
         "<b>{sender}</b> deleted {ref_type} {ref_name} in <a href=\"{repository_url}\">{repository_name}</a>"
     )
-} 
+}

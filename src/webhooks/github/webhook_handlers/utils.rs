@@ -1,6 +1,6 @@
 use serde::de::DeserializeOwned;
-use ureq::serde_json;
 use serde_urlencoded;
+use ureq::serde_json;
 
 pub fn parse_webhook_payload<T>(body: &[u8]) -> Result<T, String>
 where
@@ -18,14 +18,14 @@ where
     }
 
     // Extract the payload value
-    let form_data: std::collections::HashMap<String, String> = 
+    let form_data: std::collections::HashMap<String, String> =
         serde_urlencoded::from_str(&body_str)
             .map_err(|e| format!("Failed to parse form data: {}", e))?;
-    
-    let payload = form_data.get("payload")
+
+    let payload = form_data
+        .get("payload")
         .ok_or_else(|| "No payload field found".to_string())?;
 
     // Parse the JSON payload
-    serde_json::from_str(payload)
-        .map_err(|e| format!("Failed to parse JSON payload: {}", e))
-} 
+    serde_json::from_str(payload).map_err(|e| format!("Failed to parse JSON payload: {}", e))
+}

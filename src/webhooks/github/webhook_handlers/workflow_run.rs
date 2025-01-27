@@ -1,6 +1,6 @@
+use super::utils::parse_webhook_payload;
 use actix_web::web;
 use serde::Deserialize;
-use super::utils::parse_webhook_payload;
 
 #[derive(Debug, Deserialize)]
 pub struct WorkflowRunEvent {
@@ -40,7 +40,7 @@ pub fn handle_workflow_run_event(body: &web::Bytes) -> String {
             return String::new();
         }
     };
-    
+
     let action = &workflow_event.action;
     let workflow_run = &workflow_event.workflow_run;
     let repository_name = &workflow_event.repository.name;
@@ -70,4 +70,4 @@ pub fn handle_workflow_run_event(body: &web::Bytes) -> String {
         }
         _ => String::new(),
     }
-} 
+}
