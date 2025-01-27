@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+      - id: fmt
+        name: cargo fmt
+        stages: [pre-commit, pre-push]
+      - id: cargo-check
+        name: cargo check
+        stages: [pre-commit]
+      - id: clippy
+        name: cargo clippy
+        args: ["--", "-D", "warnings"]
+        stages: [pre-commit]
+
+default_stages: [pre-commit]

@@ -223,7 +223,7 @@ async fn handle_new_chat_and_start_command(start_command: StartCommand) -> Respo
     let bot_name = "Uptime";
 
     let thread_id_str = thread_id.map(|tid| tid.to_string());
-    let thread_id_ref = thread_id_str.as_ref().map(String::as_str);
+    let thread_id_ref = thread_id_str.as_deref();
 
     let existing_chat = find_chat_by_telegram_chat_id(&chat_id.to_string());
 

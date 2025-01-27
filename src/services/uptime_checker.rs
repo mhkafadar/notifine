@@ -96,7 +96,7 @@ async fn check_and_notify(
     update_health_url_status(health_url.id, health_result.status_code as i32);
 
     if health_result.success {
-        if !is_success_status(previous_status_code) {
+        if !is_success_status(previous_status_code as u16) {
             send_recovery_message(
                 bot,
                 health_url,
@@ -105,23 +105,21 @@ async fn check_and_notify(
             )
             .await?;
         }
-    } else {
-        if is_success_status(previous_status_code) {
-            send_failure_message(
-                bot,
-                health_url,
-                health_result.status_code,
-                health_result.duration,
-            )
-            .await?;
-        }
+    } else if is_success_status(previous_status_code as u16) {
+        send_failure_message(
+            bot,
+            health_url,
+            health_result.status_code,
+            health_result.duration,
+        )
+        .await?;
     }
 
     Ok(())
 }
 
-fn is_success_status(status_code: i32) -> bool {
-    status_code >= 200 && status_code < 300
+fn is_success_status(status_code: u16) -> bool {
+    (200..300).contains(&status_code)
 }
 
 async fn send_failure_message(

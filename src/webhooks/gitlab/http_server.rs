@@ -153,7 +153,7 @@ pub async fn handle_gitlab_webhook(
         // log gitlab bot
         log::info!("Gitlab bot: {:?}", gitlab_bot);
 
-        let thread_id = chat.thread_id.map(|tid| tid.parse::<i32>().ok()).flatten();
+        let thread_id = chat.thread_id.and_then(|tid| tid.parse::<i32>().ok());
 
         let result = gitlab_bot
             .send_telegram_message(TelegramMessage {

@@ -92,7 +92,7 @@ impl BotService {
 
         // Convert thread_id to String if present
         let thread_id_str = thread_id.map(|tid| tid.to_string());
-        let thread_id_ref = thread_id_str.as_ref().map(String::as_str);
+        let thread_id_ref = thread_id_str.as_deref();
 
         let webhook_info = get_webhook_url_or_create(WebhookGetOrCreateInput {
             telegram_chat_id: chat_id.to_string().as_str(),
