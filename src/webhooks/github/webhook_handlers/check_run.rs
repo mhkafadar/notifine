@@ -1,6 +1,6 @@
+use super::utils::parse_webhook_payload;
 use actix_web::web;
 use serde::Deserialize;
-use super::utils::parse_webhook_payload;
 
 #[derive(Debug, Deserialize)]
 pub struct CheckRunEvent {
@@ -38,7 +38,7 @@ pub fn handle_check_run_event(body: &web::Bytes) -> String {
             return String::new();
         }
     };
-    
+
     let action = &check_event.action;
     let check_run = &check_event.check_run;
     let repository_name = &check_event.repository.name;
@@ -67,4 +67,4 @@ pub fn handle_check_run_event(body: &web::Bytes) -> String {
         // We don't need to handle other actions like "requested_action", "rerequested"
         _ => String::new(),
     }
-} 
+}

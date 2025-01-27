@@ -1,7 +1,7 @@
+use super::utils::parse_webhook_payload;
 use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
-use super::utils::parse_webhook_payload;
 
 #[derive(Debug)]
 enum CommentableType {
@@ -65,10 +65,7 @@ impl ProcessComment for CommentEvent {
             comment.into_owned()
         } else {
             let mut truncated: String = comment.chars().take(100).collect();
-            truncated.push_str(&format!(
-                "<a href=\"{}\">...</a>",
-                self.comment.html_url
-            ));
+            truncated.push_str(&format!("<a href=\"{}\">...</a>", self.comment.html_url));
             truncated
         }
     }
@@ -83,7 +80,7 @@ pub fn handle_comment_event(body: &web::Bytes, full_message: bool) -> String {
             return String::new();
         }
     };
-    
+
     if comment_event.action != "created" {
         return String::new();
     }
@@ -129,4 +126,4 @@ pub fn handle_comment_event(body: &web::Bytes, full_message: bool) -> String {
             )
         }
     }
-} 
+}
