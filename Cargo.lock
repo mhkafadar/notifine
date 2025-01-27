@@ -1376,6 +1376,7 @@ dependencies = [
  "reqwest 0.12.3",
  "reqwest-oauth1",
  "serde",
+ "serde_urlencoded",
  "teloxide",
  "tokio",
  "ureq",
