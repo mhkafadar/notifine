@@ -80,12 +80,11 @@ pub fn get_webhook_url_or_create(input: WebhookGetOrCreateInput) -> WebhookInfo 
         let random_string = create_random_string();
         let name = "new_chat";
         let new_chat = create_chat(CreateChatInput {
-            telegram_chat_id: &telegram_chat_id,
+            telegram_chat_id,
             name,
             webhook_url: &random_string,
             telegram_thread_id,
         });
-        // let new_chat = create_chat(&chat_id.to_string(), name, &random_string);
         let new_webhook = create_webhook(&random_string, name, new_chat.id);
 
         WebhookInfo {
