@@ -55,6 +55,10 @@ enum Command {
         description = "Send a broadcast message to all users (admin only). Usage: /broadcast <message>"
     )]
     Broadcast,
+    #[command(
+        description = "Test a broadcast message by sending only to admin (admin only). Usage: /broadcasttest <message>"
+    )]
+    Broadcasttest,
 }
 
 impl BotService {
@@ -269,6 +273,66 @@ impl BotService {
         Ok(())
     }
 
+    async fn handle_broadcast_test_command(&self, msg: Message) -> ResponseResult<()> {
+        // Check if the user is admin
+        let admin_chat_id: i64 = env::var("TELEGRAM_ADMIN_CHAT_ID")
+            .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
+            .parse::<i64>()
+            .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID");
+
+        if msg.chat.id.0 != admin_chat_id {
+            self.bot
+                .send_message(
+                    msg.chat.id,
+                    "Sorry, this command is only available to administrators.",
+                )
+                .await?;
+            return Ok(());
+        }
+
+        let broadcast_message = msg
+            .text()
+            .and_then(|text| text.split_once(' ').map(|(_, message)| message.to_string()));
+
+        let broadcast_message = match broadcast_message {
+            Some(message) if !message.trim().is_empty() => message,
+            _ => {
+                self.bot
+                    .send_message(
+                        msg.chat.id,
+                        "Please provide a message to test. Usage: /broadcast-test <message>",
+                    )
+                    .await?;
+                return Ok(());
+            }
+        };
+
+        // Get total number of chats for simulation info
+        let total_chats = notifine::get_all_chats().len();
+
+        // Send test message to admin
+        self.bot
+            .send_message(
+                msg.chat.id,
+                "🔍 TEST MODE - Preview of your broadcast message:\n\n".to_string()
+                    + &broadcast_message,
+            )
+            .await?;
+
+        self.bot
+            .send_message(
+                msg.chat.id,
+                format!(
+                    "✅ Test complete!\n\
+                    This message would be sent to {total_chats} chats if you use /broadcast.\n\
+                    If you're happy with the formatting, use /broadcast with the same message to send it to everyone."
+                ),
+            )
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn run_bot(self) {
         let handler = Update::filter_message()
             .branch(
@@ -281,6 +345,11 @@ impl BotService {
                     .branch(case![Command::Broadcast].endpoint(
                         move |msg: Message, bot: BotService| async move {
                             bot.handle_broadcast_command(msg).await
+                        },
+                    ))
+                    .branch(case![Command::Broadcasttest].endpoint(
+                        move |msg: Message, bot: BotService| async move {
+                            bot.handle_broadcast_test_command(msg).await
                         },
                     )),
             )
