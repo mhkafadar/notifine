@@ -332,3 +332,11 @@ pub fn get_health_url_by_chat_id_and_url(chat_id_value: i64, url_value: &str) ->
         .optional()
         .expect("Error loading health URL")
 }
+
+pub fn get_all_chats() -> Vec<Chat> {
+    use self::schema::chats::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    chats.load::<Chat>(conn).expect("Error loading chats")
+}

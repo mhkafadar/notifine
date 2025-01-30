@@ -1,12 +1,13 @@
 // bot_service.rs
 use crate::utils::telegram_admin::send_message_to_admin;
 use notifine::{get_webhook_url_or_create, WebhookGetOrCreateInput};
+use std::collections::HashSet;
 use std::env;
-use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
 use teloxide::dptree::case;
 use teloxide::macros::BotCommands;
 use teloxide::payloads::SendMessageSetters;
+use teloxide::prelude::LoggingErrorHandler;
 use teloxide::prelude::{ChatId, ChatMemberUpdated, Message, Requester, ResponseResult, Update};
 use teloxide::types::{ChatMemberKind, ParseMode};
 use teloxide::{dptree, filter_command, Bot};
@@ -50,6 +51,10 @@ pub enum State {
 enum Command {
     #[command(description = "starts!")]
     Start,
+    #[command(
+        description = "Send a broadcast message to all users (admin only). Usage: /broadcast <message>"
+    )]
+    Broadcast,
 }
 
 impl BotService {
@@ -190,39 +195,110 @@ impl BotService {
         Ok(())
     }
 
-    pub async fn run_bot(self) {
-        log::info!("Starting bot...");
+    async fn handle_broadcast_command(&self, msg: Message) -> ResponseResult<()> {
+        // Check if the user is admin
+        let admin_chat_id: i64 = env::var("TELEGRAM_ADMIN_CHAT_ID")
+            .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
+            .parse::<i64>()
+            .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID");
 
-        let bot_clone = self.bot.clone();
-        let command_handler_self = self.clone();
-        let chat_member_handler_self = self.clone();
+        if msg.chat.id.0 != admin_chat_id {
+            self.bot
+                .send_message(
+                    msg.chat.id,
+                    "Sorry, this command is only available to administrators.",
+                )
+                .await?;
+            return Ok(());
+        }
 
-        let command_handler =
-            filter_command::<Command, _>().branch(case![Command::Start].endpoint({
-                move |msg: Message| {
-                    let bot_service = command_handler_self.clone(); // Use the pre-cloned `self`
-                    async move { bot_service.handle_start_command(msg).await }
-                }
-            }));
+        let broadcast_message = msg
+            .text()
+            .and_then(|text| text.split_once(' ').map(|(_, message)| message.to_string()));
 
-        let chat_member_handler = {
-            move |update: ChatMemberUpdated| {
-                let bot_service = chat_member_handler_self.clone(); // Use the pre-cloned `self`
-                async move { bot_service.handle_my_chat_member_update(update).await }
+        let broadcast_message = match broadcast_message {
+            Some(message) if !message.trim().is_empty() => message,
+            _ => {
+                self.bot
+                    .send_message(
+                        msg.chat.id,
+                        "Please provide a message to broadcast. Usage: /broadcast <message>",
+                    )
+                    .await?;
+                return Ok(());
             }
         };
 
-        let message_handler = dptree::entry()
-            .branch(Update::filter_message().branch(command_handler))
-            .branch(Update::filter_my_chat_member().endpoint(chat_member_handler));
+        // Get all chats from the database and filter unique chat IDs
+        let chats = notifine::get_all_chats();
+        let mut unique_chats = HashSet::new();
+        let mut success_count = 0;
+        let mut total_unique_chats = 0;
 
-        Dispatcher::builder(bot_clone, message_handler)
-            .dependencies(dptree::deps![InMemStorage::<State>::new()])
+        for chat in chats {
+            // Only process each chat ID once
+            if unique_chats.insert(chat.telegram_id.clone()) {
+                total_unique_chats += 1;
+                let telegram_message = TelegramMessage {
+                    chat_id: chat.telegram_id.parse().expect("Failed to parse chat ID"),
+                    thread_id: chat.thread_id.and_then(|tid| tid.parse().ok()),
+                    message: broadcast_message.clone(),
+                };
+
+                // If sending to one chat fails, continue with others
+                match self.send_telegram_message(telegram_message).await {
+                    Ok(_) => success_count += 1,
+                    Err(e) => log::error!(
+                        "Failed to send broadcast message to chat {}: {}",
+                        chat.telegram_id,
+                        e
+                    ),
+                }
+            }
+        }
+
+        self.bot
+            .send_message(
+                msg.chat.id,
+                format!(
+                    "Broadcast complete!\nMessage sent successfully to {success_count} out of {total_unique_chats} unique chats."
+                ),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn run_bot(self) {
+        let handler = Update::filter_message()
+            .branch(
+                filter_command::<Command, _>()
+                    .branch(case![Command::Start].endpoint(
+                        move |msg: Message, bot: BotService| async move {
+                            bot.handle_start_command(msg).await
+                        },
+                    ))
+                    .branch(case![Command::Broadcast].endpoint(
+                        move |msg: Message, bot: BotService| async move {
+                            bot.handle_broadcast_command(msg).await
+                        },
+                    )),
+            )
+            .branch(Update::filter_my_chat_member().endpoint(
+                move |upd: ChatMemberUpdated, bot: BotService| async move {
+                    bot.handle_my_chat_member_update(upd).await
+                },
+            ));
+
+        Dispatcher::builder(self.bot.clone(), handler)
+            .dependencies(dptree::deps![self])
+            .default_handler(|_| async {})
+            .error_handler(LoggingErrorHandler::with_custom_text(
+                "An error has occurred in the dispatcher",
+            ))
             .enable_ctrlc_handler()
             .build()
             .dispatch()
             .await;
-
-        log::info!("Closing bot... Goodbye!");
     }
 }
