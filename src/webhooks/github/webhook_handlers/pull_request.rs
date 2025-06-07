@@ -1,4 +1,5 @@
 use super::utils::parse_webhook_payload;
+use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
@@ -37,7 +38,10 @@ struct Sender {
     login: String,
 }
 
-pub fn handle_pull_request_event(body: &web::Bytes) -> String {
+pub fn handle_pull_request_event(
+    body: &web::Bytes,
+    branch_filter: Option<&BranchFilter>,
+) -> String {
     let pr_event: PullRequestEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
@@ -56,6 +60,20 @@ pub fn handle_pull_request_event(body: &web::Bytes) -> String {
     let sender = &pr_event.sender.login;
     let source_branch = &pr_event.pull_request.head.label;
     let target_branch = &pr_event.pull_request.base.label;
+
+    // Extract branch name from target branch label (format: "owner:branch-name")
+    let target_branch_name = target_branch.split(':').last().unwrap_or("");
+
+    // Apply branch filter if provided (filter based on target branch)
+    if let Some(filter) = branch_filter {
+        if !filter.should_process(target_branch_name) {
+            log::info!(
+                "Filtered out pull request event for target branch: {}",
+                target_branch_name
+            );
+            return String::new();
+        }
+    }
 
     match action.as_str() {
         "opened" => format!(

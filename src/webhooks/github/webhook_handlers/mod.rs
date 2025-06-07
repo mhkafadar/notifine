@@ -5,6 +5,8 @@ pub mod issue;
 pub mod ping;
 pub mod pull_request;
 pub mod push;
+#[cfg(test)]
+mod test_branch_filtering;
 mod utils;
 pub mod wiki;
 pub mod workflow_run;

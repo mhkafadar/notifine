@@ -1,4 +1,5 @@
 use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
+use crate::utils::branch_filter::BranchFilter;
 use crate::utils::telegram_admin::send_message_to_admin;
 use crate::webhooks::github::webhook_handlers::{
     handle_check_run_event, handle_comment_event, handle_create_event, handle_delete_event,
@@ -7,29 +8,48 @@ use crate::webhooks::github::webhook_handlers::{
 };
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
+use serde::Deserialize;
 use std::env;
+
+#[derive(Debug, Deserialize)]
+pub struct QueryParams {
+    pub branch: Option<String>,
+    pub exclude_branch: Option<String>,
+}
 
 #[post("/github/{webhook_url}")]
 pub async fn handle_github_webhook(
     webhook_url: web::Path<String>,
+    query: web::Query<QueryParams>,
     req: HttpRequest,
     body: web::Bytes,
 ) -> impl Responder {
     if let Some(event_name) = req.headers().get("x-github-event") {
         log::info!("Event name: {:?}", event_name);
+
+        // Create branch filter from query parameters
+        let branch_filter =
+            match BranchFilter::new(query.branch.as_deref(), query.exclude_branch.as_deref()) {
+                Ok(filter) => Some(filter),
+                Err(e) => {
+                    log::error!("Invalid branch filter pattern: {}", e);
+                    return HttpResponse::BadRequest();
+                }
+            };
+
         let message = match event_name.to_str() {
             Ok("ping") => handle_ping_event(&body),
-            Ok("push") => handle_push_event(&body),
+            Ok("push") => handle_push_event(&body, branch_filter.as_ref()),
             Ok("issues") => handle_issue_event(&body),
-            Ok("pull_request") => handle_pull_request_event(&body),
+            Ok("pull_request") => handle_pull_request_event(&body, branch_filter.as_ref()),
             Ok("issue_comment") | Ok("pull_request_review_comment") | Ok("commit_comment") => {
                 handle_comment_event(&body, false)
             }
             Ok("check_run") => handle_check_run_event(&body),
-            Ok("create") => handle_create_event(&body),
-            Ok("delete") => handle_delete_event(&body),
+            Ok("create") => handle_create_event(&body, branch_filter.as_ref()),
+            Ok("delete") => handle_delete_event(&body, branch_filter.as_ref()),
             Ok("gollum") => handle_wiki_event(&body),
-            Ok("workflow_run") => handle_workflow_run_event(&body),
+            Ok("workflow_run") => handle_workflow_run_event(&body, branch_filter.as_ref()),
             _ => String::new(),
         };
         log::info!("Message: {}", message);
