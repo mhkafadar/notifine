@@ -1,4 +1,5 @@
 use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
+use crate::utils::branch_filter::BranchFilter;
 use crate::utils::telegram_admin::send_message_to_admin;
 use crate::webhooks::gitlab::webhook_handlers::job::handle_job_event;
 use crate::webhooks::gitlab::webhook_handlers::merge_request::handle_merge_request_event;
@@ -10,6 +11,13 @@ use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use serde::Deserialize;
 use std::env;
+
+#[derive(Debug, Deserialize)]
+pub struct QueryParams {
+    pub branch: Option<String>,
+    pub exclude_branch: Option<String>,
+    pub full_message: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct GitlabEvent {
@@ -98,20 +106,32 @@ pub struct Author {
 #[post("/gitlab/{webhook_url}")]
 pub async fn handle_gitlab_webhook(
     webhook_url: web::Path<String>,
+    query: web::Query<QueryParams>,
     req: HttpRequest,
     body: web::Bytes,
 ) -> impl Responder {
     if let Some(event_name) = req.headers().get("x-gitlab-event") {
-        let full_message = req.query_string().contains("full_message=true");
+        // Check for full_message flag (backward compatibility with existing usage)
+        let full_message = query.full_message.as_deref() == Some("true");
+
+        // Create branch filter from query parameters
+        let branch_filter =
+            match BranchFilter::new(query.branch.as_deref(), query.exclude_branch.as_deref()) {
+                Ok(filter) => Some(filter),
+                Err(e) => {
+                    log::error!("Invalid branch filter pattern: {}", e);
+                    return HttpResponse::BadRequest();
+                }
+            };
 
         log::info!("Event: {:?}", event_name);
         let message = match event_name.to_str() {
-            Ok("Push Hook") => handle_push_event(&body),
+            Ok("Push Hook") => handle_push_event(&body, branch_filter.as_ref()),
             Ok("Tag Push Hook") => handle_tag_push_event(&body),
             Ok("Issue Hook") => handle_issue_event(&body),
             Ok("Note Hook") => handle_note_event(&body, full_message),
             // Ok("Pipeline Hook") => handle_pipeline_event(&body),
-            Ok("Merge Request Hook") => handle_merge_request_event(&body),
+            Ok("Merge Request Hook") => handle_merge_request_event(&body, branch_filter.as_ref()),
             Ok("Job Hook") => handle_job_event(&body),
             _ => handle_unknown_event(event_name.to_str().unwrap().to_string()),
         };

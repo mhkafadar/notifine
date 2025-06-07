@@ -1,4 +1,4 @@
-use crate::schema::{chats, health_urls, trello_tokens, webhooks};
+use crate::schema::{chats, health_urls, tesla_auth, tesla_orders, trello_tokens, webhooks};
 use diesel::data_types::PgTimestamp;
 use diesel::prelude::*;
 
@@ -87,4 +87,50 @@ pub struct NewHealthUrl<'a> {
     pub url: &'a str,
     pub chat_id: i32,
     pub status_code: i32,
+}
+
+#[derive(Debug, Queryable, Identifiable)]
+#[diesel(table_name = tesla_auth)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct TeslaAuth {
+    pub id: i32,
+    pub chat_id: i64,
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in: i64,
+    pub token_type: String,
+    pub created_at: PgTimestamp,
+    pub updated_at: PgTimestamp,
+    pub monitoring_enabled: bool,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = tesla_auth)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewTeslaAuth<'a> {
+    pub chat_id: i64,
+    pub access_token: &'a str,
+    pub refresh_token: &'a str,
+    pub expires_in: i64,
+    pub token_type: &'a str,
+}
+
+#[derive(Debug, Queryable, Identifiable, Associations)]
+#[diesel(belongs_to(TeslaAuth, foreign_key = chat_id))]
+#[diesel(table_name = tesla_orders)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct TeslaOrder {
+    pub id: i32,
+    pub chat_id: i64,
+    pub order_data: serde_json::Value,
+    pub created_at: PgTimestamp,
+    pub updated_at: PgTimestamp,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = tesla_orders)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewTeslaOrder {
+    pub chat_id: i64,
+    pub order_data: serde_json::Value,
 }

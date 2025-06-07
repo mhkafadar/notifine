@@ -1,4 +1,5 @@
 use super::utils::parse_webhook_payload;
+use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
@@ -38,7 +39,7 @@ struct Sender {
     login: String,
 }
 
-pub fn handle_push_event(body: &web::Bytes) -> String {
+pub fn handle_push_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>) -> String {
     let push_event: PushEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
@@ -47,6 +48,21 @@ pub fn handle_push_event(body: &web::Bytes) -> String {
             return String::new();
         }
     };
+
+    // Extract branch name from ref field (refs/heads/branch-name)
+    let branch_name = push_event
+        .ref_field
+        .split("refs/heads/")
+        .last()
+        .unwrap_or("");
+
+    // Apply branch filter if provided
+    if let Some(filter) = branch_filter {
+        if !filter.should_process(branch_name) {
+            log::info!("Filtered out push event for branch: {}", branch_name);
+            return String::new();
+        }
+    }
 
     let CreateFirstRow {
         first_row,

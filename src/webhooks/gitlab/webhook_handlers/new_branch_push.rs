@@ -4,7 +4,7 @@ use crate::webhooks::gitlab::http_server::GitlabEvent;
 
 pub fn new_branch_push(gitlab_event: &GitlabEvent) -> String {
     let branch_ref = &gitlab_event.r#ref.as_ref().unwrap();
-    let branch_name = branch_ref.split('/').last().unwrap();
+    let branch_name = branch_ref.split('/').next_back().unwrap();
     let project = &gitlab_event.project;
 
     // replace - with \- to avoid error in telegram markdown

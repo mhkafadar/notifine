@@ -5,6 +5,7 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::env;
 
+pub mod crypto;
 pub mod models;
 pub mod schema;
 
