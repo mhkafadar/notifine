@@ -1,4 +1,5 @@
 use super::utils::parse_webhook_payload;
+use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
 use serde::Deserialize;
 
@@ -22,7 +23,7 @@ struct Sender {
     login: String,
 }
 
-pub fn handle_create_event(body: &web::Bytes) -> String {
+pub fn handle_create_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>) -> String {
     let create_event: CreateDeleteEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
@@ -44,12 +45,22 @@ pub fn handle_create_event(body: &web::Bytes) -> String {
     let sender = &create_event.sender.login;
     let ref_url = format!("{}/tree/{}", repository_url, ref_name);
 
+    // Apply branch filter if provided and this is a branch event
+    if ref_type == "branch" {
+        if let Some(filter) = branch_filter {
+            if !filter.should_process(ref_name) {
+                log::info!("Filtered out create branch event for branch: {}", ref_name);
+                return String::new();
+            }
+        }
+    }
+
     format!(
         "<b>{sender}</b> created {ref_type} <a href=\"{ref_url}\">{ref_name}</a> in <a href=\"{repository_url}\">{repository_name}</a>"
     )
 }
 
-pub fn handle_delete_event(body: &web::Bytes) -> String {
+pub fn handle_delete_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>) -> String {
     let delete_event: CreateDeleteEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
@@ -69,6 +80,16 @@ pub fn handle_delete_event(body: &web::Bytes) -> String {
     let repository_name = &delete_event.repository.name;
     let repository_url = &delete_event.repository.html_url;
     let sender = &delete_event.sender.login;
+
+    // Apply branch filter if provided and this is a branch event
+    if ref_type == "branch" {
+        if let Some(filter) = branch_filter {
+            if !filter.should_process(ref_name) {
+                log::info!("Filtered out delete branch event for branch: {}", ref_name);
+                return String::new();
+            }
+        }
+    }
 
     format!(
         "<b>{sender}</b> deleted {ref_type} {ref_name} in <a href=\"{repository_url}\">{repository_name}</a>"

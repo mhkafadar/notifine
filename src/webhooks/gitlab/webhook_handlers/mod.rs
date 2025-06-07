@@ -7,5 +7,7 @@ pub mod note;
 pub mod pipeline;
 pub mod push;
 pub mod tag_push;
+#[cfg(test)]
+mod test_branch_filtering;
 pub mod unknown_event;
 pub mod wiki_page;

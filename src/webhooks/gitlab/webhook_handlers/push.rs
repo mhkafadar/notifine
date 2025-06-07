@@ -1,3 +1,4 @@
+use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
@@ -32,8 +33,24 @@ struct Author {
     name: String,
 }
 
-pub fn handle_push_event(body: &web::Bytes) -> String {
+pub fn handle_push_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>) -> String {
     let push_event: PushEvent = serde_json::from_slice(body).unwrap();
+
+    // Extract branch name from ref field (refs/heads/branch-name)
+    let branch_name = push_event
+        .ref_field
+        .split("refs/heads/")
+        .last()
+        .unwrap_or("");
+
+    // Apply branch filter if provided
+    if let Some(filter) = branch_filter {
+        if !filter.should_process(branch_name) {
+            log::info!("Filtered out GitLab push event for branch: {}", branch_name);
+            return String::new();
+        }
+    }
+
     let CreateFirstRow {
         mut commit_paragraph,
         delete_branch_event,

@@ -1,3 +1,4 @@
+use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
 use serde::Deserialize;
 use ureq::serde_json;
@@ -24,7 +25,10 @@ struct User {
 
 // TODO also implement environment name
 
-pub fn handle_merge_request_event(body: &web::Bytes) -> String {
+pub fn handle_merge_request_event(
+    body: &web::Bytes,
+    branch_filter: Option<&BranchFilter>,
+) -> String {
     let merge_request_event: MergeRequestEvent = serde_json::from_slice(body).unwrap();
     let merge_request_details = &merge_request_event.object_attributes;
     let url = &merge_request_details.url;
@@ -32,6 +36,17 @@ pub fn handle_merge_request_event(body: &web::Bytes) -> String {
     let source_branch = &merge_request_details.source_branch;
     let target_branch = &merge_request_details.target_branch;
     let sender = &merge_request_event.user.name;
+
+    // Apply branch filter if provided (filter based on target branch)
+    if let Some(filter) = branch_filter {
+        if !filter.should_process(target_branch) {
+            log::info!(
+                "Filtered out GitLab merge request event for target branch: {}",
+                target_branch
+            );
+            return String::new();
+        }
+    }
 
     let action = match &merge_request_details.action {
         Some(action) => action,

@@ -1,4 +1,5 @@
 use super::utils::parse_webhook_payload;
+use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
 use serde::Deserialize;
 
@@ -31,7 +32,10 @@ struct Sender {
     login: String,
 }
 
-pub fn handle_workflow_run_event(body: &web::Bytes) -> String {
+pub fn handle_workflow_run_event(
+    body: &web::Bytes,
+    branch_filter: Option<&BranchFilter>,
+) -> String {
     let workflow_event: WorkflowRunEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
@@ -50,6 +54,14 @@ pub fn handle_workflow_run_event(body: &web::Bytes) -> String {
     let branch = &workflow_run.head_branch;
     let run_number = workflow_run.run_number;
     let workflow_name = workflow_run.name.as_deref().unwrap_or("workflow");
+
+    // Apply branch filter if provided
+    if let Some(filter) = branch_filter {
+        if !filter.should_process(branch) {
+            log::info!("Filtered out workflow run event for branch: {}", branch);
+            return String::new();
+        }
+    }
 
     match (action.as_str(), workflow_run.status.as_str()) {
         ("requested", _) => format!(
