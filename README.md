@@ -13,6 +13,9 @@ Notifine helps with events in your work tools like Gitlab, Github, and Trello. J
 - 🤖 [Gitlab bot](https://t.me/gitlab_notifine_bot)
 - 🤖 [Github bot](https://t.me/github_notifine_bot)
 - 🧭 Trello bot (Soon)
+- 🚗 Tesla bot - Track your Tesla order status
+- 🔔 [Beep bot](https://t.me/beep_notifine_bot) - Simple webhook notifications
+- 📊 [Uptime bot](https://t.me/uptime_notifine_bot) - Monitor website availability
 
 ---
 
@@ -34,6 +37,15 @@ Notifine helps with events in your work tools like Gitlab, Github, and Trello. J
  ✅ Issue  
  ✅ Comment  
  ✅ Deployment notifications
+
+### Tesla Bot
+
+✅ OAuth authentication with Tesla account  
+✅ Real-time order status tracking  
+✅ Automatic status change notifications (checks every 5 minutes)  
+✅ Detailed order information (VIN, delivery dates, etc.)  
+✅ Secure token storage with AES-256 encryption  
+✅ Smart change detection - only notifies when something changes
 
 ## ✨ Features
 
@@ -109,6 +121,71 @@ https://webhook.notifine.com/github/webhook123?branch=main,release/*&exclude_bra
 
 - Webhooks without branch filters continue to receive all events
 - GitLab's existing `?full_message=true` parameter still works alongside branch filtering
+
+## Configuration
+
+### Environment Variables
+
+The following environment variables are required for running Notifine:
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:password@localhost/notifine
+
+# Webhook base URL
+WEBHOOK_BASE_URL=https://webhook.notifine.com
+
+# Telegram Bot Tokens
+GITLAB_TELOXIDE_TOKEN=your_gitlab_bot_token
+GITHUB_TELOXIDE_TOKEN=your_github_bot_token
+BEEP_TELOXIDE_TOKEN=your_beep_bot_token
+TRELLO_TELOXIDE_TOKEN=your_trello_bot_token
+UPTIME_TELOXIDE_TOKEN=your_uptime_bot_token
+TESLA_TELOXIDE_TOKEN=your_tesla_bot_token
+
+# Security - Token Encryption
+TESLA_ENCRYPTION_KEY=  # 64 hex characters for AES-256 encryption
+
+# Admin Configuration
+ADMIN_LOGS=NOT_ACTIVE  # ACTIVE or NOT_ACTIVE
+ADMIN_LOG_LEVEL=0
+TELEGRAM_ADMIN_CHAT_ID=your_admin_chat_id
+```
+
+### Security
+
+#### Token Encryption
+
+Notifine uses AES-256-GCM encryption to protect sensitive OAuth tokens stored in the database. This ensures that even if the database is compromised, tokens remain secure.
+
+**Generating an Encryption Key:**
+
+```bash
+# Generate a secure 256-bit key (64 hex characters)
+openssl rand -hex 32
+```
+
+**Important Security Notes:**
+
+- Store the encryption key securely (use environment variables, never commit to git)
+- Use different encryption keys for each environment (dev, staging, production)
+- Rotate encryption keys periodically
+- Back up your encryption keys securely - lost keys mean inaccessible tokens
+
+### Database Setup
+
+Run migrations to set up the database schema:
+
+```bash
+# Install diesel CLI
+cargo install diesel_cli --no-default-features --features postgres
+
+# Run migrations
+diesel migration run
+
+# Or using Docker Compose
+docker-compose up -d
+```
 
 ## Ways to help
 

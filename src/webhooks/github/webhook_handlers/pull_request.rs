@@ -62,7 +62,7 @@ pub fn handle_pull_request_event(
     let target_branch = &pr_event.pull_request.base.label;
 
     // Extract branch name from target branch label (format: "owner:branch-name")
-    let target_branch_name = target_branch.split(':').last().unwrap_or("");
+    let target_branch_name = target_branch.split(':').next_back().unwrap_or("");
 
     // Apply branch filter if provided (filter based on target branch)
     if let Some(filter) = branch_filter {

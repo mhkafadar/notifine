@@ -1,4 +1,7 @@
-use crate::{http_server::run_http_server, services::uptime_checker::run_uptime_checker};
+use crate::{
+    http_server::run_http_server,
+    services::{tesla_monitor::start_tesla_monitoring, uptime_checker::run_uptime_checker},
+};
 
 use dotenv::dotenv;
 use std::env;
@@ -14,6 +17,7 @@ use crate::bots::bot_service::{BotConfig, BotService};
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::PgConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use teloxide::Bot;
 
 pub type PgPool = Pool<ConnectionManager<PgConnection>>;
 pub type PgPooledConnection = PooledConnection<ConnectionManager<PgConnection>>;
@@ -58,8 +62,23 @@ async fn main() {
 
     task::spawn(bots::uptime_bot::run_bot());
 
+    // Only spawn Tesla bot if token is available
+    if let Ok(tesla_token) = env::var("TESLA_TELOXIDE_TOKEN") {
+        task::spawn(async move {
+            let bot = Bot::new(tesla_token);
+            bots::tesla_bot::run_tesla_bot(bot).await;
+        });
+    }
+
     task::spawn(async {
         run_uptime_checker().await;
+    });
+
+    task::spawn(async {
+        log::info!("Starting Tesla monitoring service");
+        if let Err(e) = start_tesla_monitoring().await {
+            log::error!("Tesla monitoring service error: {}", e);
+        }
     });
 
     // task::spawn(run_github_bot());
