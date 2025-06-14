@@ -1746,7 +1746,6 @@ async fn order_status(bot: Bot, msg: Message) -> Result<()> {
         }
     };
 
-
     bot.send_message(chat_id, t(&user_language, "tesla.orders.fetching"))
         .await?;
 
