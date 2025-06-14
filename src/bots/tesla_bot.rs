@@ -52,6 +52,15 @@ pub struct TokenResponse {
     pub token_type: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RefreshTokenResponse {
+    pub access_token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_token: Option<String>,
+    pub expires_in: u64,
+    pub token_type: String,
+}
+
 #[derive(Debug)]
 pub struct PkceParams {
     pub code_verifier: String,
@@ -241,22 +250,82 @@ async fn exchange_code_for_tokens(
     Ok(token_response)
 }
 
-pub async fn refresh_tokens(client: &Client, refresh_token: &str) -> Result<TokenResponse> {
+pub async fn refresh_access_token_if_needed(
+    client: &Client,
+    auth: &TeslaAuth,
+    crypto: &TokenCrypto,
+) -> Result<String> {
+    let mut access_token = crypto.decrypt(&auth.access_token)?;
+
+    if !is_token_valid(&access_token).unwrap_or(false) {
+        let refresh_token = crypto.decrypt(&auth.refresh_token)?;
+        match refresh_tokens(client, &refresh_token).await {
+            Ok(new_tokens) => {
+                let encrypted_access_token = crypto.encrypt(&new_tokens.access_token)?;
+                let mut conn = notifine::establish_connection();
+
+                diesel::update(tesla_auth::table.filter(tesla_auth::chat_id.eq(auth.chat_id)))
+                    .set((
+                        tesla_auth::access_token.eq(&encrypted_access_token),
+                        tesla_auth::expires_in.eq(new_tokens.expires_in as i64),
+                        tesla_auth::updated_at.eq(diesel::dsl::now),
+                    ))
+                    .execute(&mut conn)?;
+
+                access_token = new_tokens.access_token;
+                log::info!(
+                    "Successfully refreshed access token for chat {}",
+                    auth.chat_id
+                );
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!("Failed to refresh token: {}", e));
+            }
+        }
+    }
+
+    Ok(access_token)
+}
+
+pub async fn refresh_tokens(client: &Client, refresh_token: &str) -> Result<RefreshTokenResponse> {
     let mut token_data = HashMap::new();
     token_data.insert("grant_type", "refresh_token");
     token_data.insert("client_id", "ownerapi");
     token_data.insert("refresh_token", refresh_token);
 
-    let response = client.post(TOKEN_URL).form(&token_data).send().await?;
+    log::info!("TOKEN_REFRESH: Attempting to refresh token");
 
-    if !response.status().is_success() {
+    let response = client.post(TOKEN_URL).form(&token_data).send().await?;
+    let status = response.status();
+
+    log::info!("TOKEN_REFRESH: Received response with status: {}", status);
+
+    if !status.is_success() {
+        let error_body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Could not read error response".to_string());
+        log::error!(
+            "TOKEN_REFRESH: Failed with status {} - Error body: {}",
+            status,
+            error_body
+        );
         return Err(anyhow::anyhow!(
-            "Token refresh failed with status: {}",
-            response.status()
+            "Token refresh failed with status: {} - Error: {}",
+            status,
+            error_body
         ));
     }
 
-    let token_response: TokenResponse = response.json().await?;
+    let response_text = response.text().await?;
+    log::info!("TOKEN_REFRESH: Response body: {}", response_text);
+
+    let token_response: RefreshTokenResponse =
+        serde_json::from_str(&response_text).map_err(|e| {
+            anyhow::anyhow!("Failed to parse token response '{}': {}", response_text, e)
+        })?;
+
+    log::info!("TOKEN_REFRESH: Successfully parsed token response");
     Ok(token_response)
 }
 
@@ -277,7 +346,16 @@ pub fn is_token_valid(access_token: &str) -> Result<bool> {
 
     if let Some(exp) = jwt_payload.get("exp").and_then(|v| v.as_u64()) {
         let current_time = chrono::Utc::now().timestamp() as u64;
-        Ok(exp > current_time)
+        let is_valid = exp > current_time;
+
+        log::info!(
+            "TOKEN_VALIDATION: Current time: {}, Token exp: {}, Valid: {}",
+            current_time,
+            exp,
+            is_valid
+        );
+
+        Ok(is_valid)
     } else {
         Err(anyhow::anyhow!("Token expiration not found"))
     }
@@ -1024,46 +1102,21 @@ async fn order_status(bot: Bot, msg: Message) -> Result<()> {
     let client = Client::new();
     let crypto = get_token_crypto()?;
 
-    // Decrypt the access token
-    let mut access_token = crypto.decrypt(&auth.access_token)?;
+    let access_token = match refresh_access_token_if_needed(&client, &auth, &crypto).await {
+        Ok(token) => token,
+        Err(e) => {
+            diesel::delete(tesla_auth::table.filter(tesla_auth::chat_id.eq(chat_id.0)))
+                .execute(&mut conn)?;
 
-    // Check if token is valid, refresh if needed
-    let token_valid = is_token_valid(&access_token).unwrap_or(false);
-    if !token_valid {
-        // Decrypt refresh token for use
-        let refresh_token = crypto.decrypt(&auth.refresh_token)?;
-        match refresh_tokens(&client, &refresh_token).await {
-            Ok(new_tokens) => {
-                // Encrypt new tokens before updating database
-                let encrypted_access_token = crypto.encrypt(&new_tokens.access_token)?;
-
-                // Update tokens in database
-                diesel::update(tesla_auth::table.filter(tesla_auth::chat_id.eq(chat_id.0)))
-                    .set((
-                        tesla_auth::access_token.eq(&encrypted_access_token),
-                        tesla_auth::expires_in.eq(new_tokens.expires_in as i64),
-                        tesla_auth::updated_at.eq(diesel::dsl::now),
-                    ))
-                    .execute(&mut conn)?;
-
-                access_token = new_tokens.access_token;
-            }
-            Err(e) => {
-                // Delete the invalid auth and ask user to login again
-                diesel::delete(tesla_auth::table.filter(tesla_auth::chat_id.eq(chat_id.0)))
-                    .execute(&mut conn)?;
-
-                bot.send_message(
-                    chat_id,
-                    format!("Token expired or invalid: {}. Your authentication has been cleared. Please /login again.", e),
-                )
-                .await?;
-                return Ok(());
-            }
+            bot.send_message(
+                chat_id,
+                format!("Token expired or invalid: {}. Your authentication has been cleared. Please /login again.", e),
+            )
+            .await?;
+            return Ok(());
         }
-    }
+    };
 
-    // Fetch orders
     bot.send_message(chat_id, "Fetching your Tesla orders... 🔄")
         .await?;
 
