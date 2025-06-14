@@ -16,9 +16,10 @@ use tokio::sync::Semaphore;
 use tokio::time::sleep;
 
 use crate::bots::tesla_bot::{
-    compare_orders, create_order_snapshot, format_order_changes, get_order_details,
+    compare_orders, create_order_snapshot, format_order_summary, get_order_details,
     refresh_access_token_if_needed, retrieve_orders, OrderSnapshot,
 };
+use notifine::i18n::I18N;
 
 const BATCH_SIZE: usize = 5;
 const DEFAULT_CHECK_INTERVAL_SECS: u64 = 10; // 5 minutes
@@ -173,9 +174,12 @@ async fn check_user_orders(auth: TeslaAuth, client: Arc<Client>, bot: Arc<Bot>) 
                     let changes = compare_orders(old_snapshot, &new_snapshot);
 
                     if !changes.is_empty() {
+                        // Get user language preference
+                        let user_language = I18N.get_user_language(auth.chat_id);
+
                         // Send notification about changes using the same formatting as /orderstatus
                         let message =
-                            format_order_changes(&order.reference_number, &changes, &new_snapshot);
+                            format_order_summary(&new_snapshot, Some(&changes), &user_language);
                         bot.send_message(chat_id, message).await?;
                         info!("Sent update notification to chat {}", auth.chat_id);
                     }

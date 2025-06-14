@@ -11,6 +11,7 @@ pub struct Chat {
     pub telegram_id: String,
     pub webhook_url: String,
     pub thread_id: Option<String>,
+    pub language: String,
 }
 
 #[derive(Insertable)]
@@ -21,6 +22,7 @@ pub struct NewChat<'a> {
     pub telegram_id: &'a str,
     pub webhook_url: &'a str,
     pub thread_id: Option<&'a str>,
+    pub language: &'a str,
 }
 
 #[derive(Queryable, Associations, Identifiable)]

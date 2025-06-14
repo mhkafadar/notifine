@@ -233,6 +233,7 @@ async fn handle_new_chat_and_start_command(start_command: StartCommand) -> Respo
             telegram_chat_id: &chat_id.to_string(),
             telegram_thread_id: thread_id_ref,
             webhook_url: "-", // make it optional in a later migration
+            language: "en",   // Default language for uptime bot
         });
     }
 

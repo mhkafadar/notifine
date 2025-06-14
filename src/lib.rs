@@ -6,6 +6,7 @@ use rand::{thread_rng, Rng};
 use std::env;
 
 pub mod crypto;
+pub mod i18n;
 pub mod models;
 pub mod schema;
 
@@ -85,6 +86,7 @@ pub fn get_webhook_url_or_create(input: WebhookGetOrCreateInput) -> WebhookInfo 
             name,
             webhook_url: &random_string,
             telegram_thread_id,
+            language: "en", // Default language
         });
         let new_webhook = create_webhook(&random_string, name, new_chat.id);
 
@@ -111,6 +113,7 @@ pub struct CreateChatInput<'a> {
     pub name: &'a str,
     pub webhook_url: &'a str,
     pub telegram_thread_id: Option<&'a str>,
+    pub language: &'a str,
 }
 
 pub fn create_chat(create_chat_input: CreateChatInput) -> Chat {
@@ -119,6 +122,7 @@ pub fn create_chat(create_chat_input: CreateChatInput) -> Chat {
         name,
         webhook_url,
         telegram_thread_id,
+        language,
     } = create_chat_input;
 
     use self::schema::chats::table;
@@ -130,6 +134,7 @@ pub fn create_chat(create_chat_input: CreateChatInput) -> Chat {
         name,
         webhook_url,
         thread_id: telegram_thread_id,
+        language,
     };
 
     diesel::insert_into(table)
