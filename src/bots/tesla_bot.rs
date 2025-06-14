@@ -1,6 +1,6 @@
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Duration, Timelike, Utc};
 use diesel::prelude::*;
 use rand::Rng;
 use reqwest::Client;
@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use notifine::{
     crypto::TokenCrypto,
+    i18n::{t, I18n, I18N},
     models::{NewTeslaAuth, NewTeslaOrder, TeslaAuth, TeslaOrder},
     schema::{tesla_auth, tesla_orders},
 };
@@ -48,6 +49,15 @@ const APP_VERSION: &str = "4.44.5-3304";
 pub struct TokenResponse {
     pub access_token: String,
     pub refresh_token: String,
+    pub expires_in: u64,
+    pub token_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RefreshTokenResponse {
+    pub access_token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_token: Option<String>,
     pub expires_in: u64,
     pub token_type: String,
 }
@@ -100,6 +110,19 @@ pub struct OrderSnapshot {
     pub delivery_window: Option<String>,
     pub eta_to_delivery_center: Option<String>,
     pub delivery_appointment: Option<String>,
+    // New fields for comprehensive tracking
+    pub reservation_amount: Option<i64>,
+    pub order_amount: Option<i64>,
+    pub amount_due: Option<i64>,
+    pub insurance_policy_number: Option<String>,
+    pub insurance_status: Option<String>,
+    pub delivery_address: Option<String>,
+    pub delivery_type: Option<String>,
+    pub is_more_than_two_weeks: Option<bool>,
+    pub financing_status: Option<String>,
+    pub final_payment_status: Option<String>,
+    pub payment_method: Option<String>,
+    pub paid_amounts: Option<Vec<(String, String)>>, // (amount, date) pairs
 }
 
 #[derive(Debug, Clone)]
@@ -124,11 +147,32 @@ fn get_token_crypto() -> Result<TokenCrypto> {
     TokenCrypto::new(&key)
 }
 
+fn format_formatted_number(num: i64) -> String {
+    let num_str = num.to_string();
+    let chars: Vec<char> = num_str.chars().collect();
+    let mut result = String::new();
+
+    for (i, &ch) in chars.iter().rev().enumerate() {
+        if i > 0 && i % 3 == 0 {
+            result.insert(0, '.');
+        }
+        result.insert(0, ch);
+    }
+
+    result
+}
+
 pub fn format_date(date_str: &str) -> String {
     // Try to parse the ISO date string with timezone first
     if let Ok(dt) = DateTime::parse_from_rfc3339(date_str) {
-        // Format as "28 May 2025 18:30:56"
-        dt.format("%d %B %Y %H:%M:%S").to_string()
+        // Check if time is 00:00:00 (midnight)
+        if dt.hour() == 0 && dt.minute() == 0 && dt.second() == 0 {
+            // Format as "28 May 2025" (date only)
+            dt.format("%d %B %Y").to_string()
+        } else {
+            // Format as "28 May 2025 18:30:56" (date with time)
+            dt.format("%d %B %Y %H:%M:%S").to_string()
+        }
     } else {
         // Try to parse as UTC datetime without timezone suffix
         // Check if it already has timezone info (Z, +, or - after T followed by time)
@@ -143,7 +187,14 @@ pub fn format_date(date_str: &str) -> String {
         };
 
         if let Ok(dt) = DateTime::parse_from_rfc3339(&date_with_z) {
-            dt.format("%d %B %Y %H:%M:%S").to_string()
+            // Check if time is 00:00:00 (midnight)
+            if dt.hour() == 0 && dt.minute() == 0 && dt.second() == 0 {
+                // Format as "28 May 2025" (date only)
+                dt.format("%d %B %Y").to_string()
+            } else {
+                // Format as "28 May 2025 18:30:56" (date with time)
+                dt.format("%d %B %Y %H:%M:%S").to_string()
+            }
         } else {
             // If parsing still fails, return the original string
             date_str.to_string()
@@ -241,22 +292,82 @@ async fn exchange_code_for_tokens(
     Ok(token_response)
 }
 
-pub async fn refresh_tokens(client: &Client, refresh_token: &str) -> Result<TokenResponse> {
+pub async fn refresh_access_token_if_needed(
+    client: &Client,
+    auth: &TeslaAuth,
+    crypto: &TokenCrypto,
+) -> Result<String> {
+    let mut access_token = crypto.decrypt(&auth.access_token)?;
+
+    if !is_token_valid(&access_token).unwrap_or(false) {
+        let refresh_token = crypto.decrypt(&auth.refresh_token)?;
+        match refresh_tokens(client, &refresh_token).await {
+            Ok(new_tokens) => {
+                let encrypted_access_token = crypto.encrypt(&new_tokens.access_token)?;
+                let mut conn = notifine::establish_connection();
+
+                diesel::update(tesla_auth::table.filter(tesla_auth::chat_id.eq(auth.chat_id)))
+                    .set((
+                        tesla_auth::access_token.eq(&encrypted_access_token),
+                        tesla_auth::expires_in.eq(new_tokens.expires_in as i64),
+                        tesla_auth::updated_at.eq(diesel::dsl::now),
+                    ))
+                    .execute(&mut conn)?;
+
+                access_token = new_tokens.access_token;
+                log::info!(
+                    "Successfully refreshed access token for chat {}",
+                    auth.chat_id
+                );
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!("Failed to refresh token: {}", e));
+            }
+        }
+    }
+
+    Ok(access_token)
+}
+
+pub async fn refresh_tokens(client: &Client, refresh_token: &str) -> Result<RefreshTokenResponse> {
     let mut token_data = HashMap::new();
     token_data.insert("grant_type", "refresh_token");
     token_data.insert("client_id", "ownerapi");
     token_data.insert("refresh_token", refresh_token);
 
-    let response = client.post(TOKEN_URL).form(&token_data).send().await?;
+    log::info!("TOKEN_REFRESH: Attempting to refresh token");
 
-    if !response.status().is_success() {
+    let response = client.post(TOKEN_URL).form(&token_data).send().await?;
+    let status = response.status();
+
+    log::info!("TOKEN_REFRESH: Received response with status: {}", status);
+
+    if !status.is_success() {
+        let error_body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Could not read error response".to_string());
+        log::error!(
+            "TOKEN_REFRESH: Failed with status {} - Error body: {}",
+            status,
+            error_body
+        );
         return Err(anyhow::anyhow!(
-            "Token refresh failed with status: {}",
-            response.status()
+            "Token refresh failed with status: {} - Error: {}",
+            status,
+            error_body
         ));
     }
 
-    let token_response: TokenResponse = response.json().await?;
+    let response_text = response.text().await?;
+    log::info!("TOKEN_REFRESH: Response body: {}", response_text);
+
+    let token_response: RefreshTokenResponse =
+        serde_json::from_str(&response_text).map_err(|e| {
+            anyhow::anyhow!("Failed to parse token response '{}': {}", response_text, e)
+        })?;
+
+    log::info!("TOKEN_REFRESH: Successfully parsed token response");
     Ok(token_response)
 }
 
@@ -277,7 +388,16 @@ pub fn is_token_valid(access_token: &str) -> Result<bool> {
 
     if let Some(exp) = jwt_payload.get("exp").and_then(|v| v.as_u64()) {
         let current_time = chrono::Utc::now().timestamp() as u64;
-        Ok(exp > current_time)
+        let is_valid = exp > current_time;
+
+        log::info!(
+            "TOKEN_VALIDATION: Current time: {}, Token exp: {}, Valid: {}",
+            current_time,
+            exp,
+            is_valid
+        );
+
+        Ok(is_valid)
     } else {
         Err(anyhow::anyhow!("Token expiration not found"))
     }
@@ -338,10 +458,22 @@ pub fn create_order_snapshot(order: &Order, details: &serde_json::Value) -> Orde
         delivery_window: None,
         eta_to_delivery_center: None,
         delivery_appointment: None,
+        reservation_amount: None,
+        order_amount: None,
+        amount_due: None,
+        insurance_policy_number: None,
+        insurance_status: None,
+        delivery_address: None,
+        delivery_type: None,
+        is_more_than_two_weeks: None,
+        financing_status: None,
+        final_payment_status: None,
+        payment_method: None,
+        paid_amounts: None,
     };
 
     if let Some(tasks) = details.get("tasks") {
-        // Extract reservation details
+        // Extract registration details
         if let Some(registration) = tasks.get("registration") {
             if let Some(order_details) = registration.get("orderDetails") {
                 snapshot.reservation_date = order_details
@@ -366,6 +498,65 @@ pub fn create_order_snapshot(order: &Order, details: &serde_json::Value) -> Orde
                 snapshot.routing_location = order_details
                     .get("vehicleRoutingLocation")
                     .and_then(|v| v.as_u64());
+
+                snapshot.reservation_amount = order_details
+                    .get("reservationAmountReceived")
+                    .and_then(|v| v.as_i64());
+
+                snapshot.order_amount = order_details.get("orderAmount").and_then(|v| v.as_i64());
+
+                // Check for order adjustments or paid amounts
+                if let Some(order_adjustments) = order_details
+                    .get("orderAdjustments")
+                    .and_then(|v| v.as_array())
+                {
+                    let mut paid_list = Vec::new();
+                    for adjustment in order_adjustments {
+                        if let (Some(amount), Some(date)) = (
+                            adjustment.get("amount").and_then(|v| v.as_i64()),
+                            adjustment.get("date").and_then(|v| v.as_str()),
+                        ) {
+                            if amount != 0 {
+                                paid_list.push((
+                                    format!(
+                                        "{} {} TL",
+                                        if amount < 0 { "-" } else { "" },
+                                        format_formatted_number(amount.abs())
+                                    ),
+                                    format_date(date),
+                                ));
+                            }
+                        }
+                    }
+                    if !paid_list.is_empty() {
+                        snapshot.paid_amounts = Some(paid_list);
+                    }
+                }
+
+                // If no adjustments found, check if we can show the total amount paid based on order amount
+                if snapshot.paid_amounts.is_none() {
+                    if let Some(order_amount) =
+                        order_details.get("orderAmount").and_then(|v| v.as_i64())
+                    {
+                        if order_amount > 0 {
+                            let order_date = order_details
+                                .get("orderPlacedDate")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_else(|| {
+                                    order_details
+                                        .get("reservationDate")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("2025-06-11")
+                                });
+                            let mut paid_list = Vec::new();
+                            paid_list.push((
+                                format!("- {} TL", format_formatted_number(order_amount)),
+                                format_date(order_date),
+                            ));
+                            snapshot.paid_amounts = Some(paid_list);
+                        }
+                    }
+                }
             }
         }
 
@@ -376,19 +567,161 @@ pub fn create_order_snapshot(order: &Order, details: &serde_json::Value) -> Orde
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
+            // Try multiple fields for delivery appointment
             snapshot.delivery_appointment = scheduling
                 .get("apptDateTimeAddressStr")
+                .or_else(|| scheduling.get("appointmentDate"))
+                .or_else(|| scheduling.get("deliveryAppointmentDate"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
+
+            snapshot.delivery_type = scheduling
+                .get("deliveryType")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            snapshot.is_more_than_two_weeks = scheduling
+                .get("isMoreThanTwoWeeks")
+                .and_then(|v| v.as_bool());
         }
 
-        // Extract ETA details
+        // Extract final payment details
         if let Some(final_payment) = tasks.get("finalPayment") {
             if let Some(data) = final_payment.get("data") {
                 snapshot.eta_to_delivery_center = data
                     .get("etaToDeliveryCenter")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
+
+                snapshot.amount_due = data.get("amountDue").and_then(|v| v.as_i64());
+
+                // Also check for appointment date in final payment data
+                if snapshot.delivery_appointment.is_none() {
+                    snapshot.delivery_appointment = data
+                        .get("appointmentDate")
+                        .or_else(|| data.get("appointmentDateUtc"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                }
+            }
+
+            snapshot.final_payment_status = final_payment
+                .get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+        }
+
+        // Extract insurance details
+        if let Some(insurance) = tasks.get("insurance") {
+            snapshot.insurance_status = insurance
+                .get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            // Try multiple locations for insurance policy number
+            snapshot.insurance_policy_number = insurance
+                .get("insurancePolicyNumber")
+                .or_else(|| insurance.get("policyNumber"))
+                .or_else(|| {
+                    insurance
+                        .get("data")
+                        .and_then(|d| d.get("insurancePolicyNumber"))
+                })
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+        }
+
+        // Extract financing details
+        if let Some(financing) = tasks.get("financing") {
+            snapshot.financing_status = financing
+                .get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+        }
+
+        // Extract delivery details
+        if let Some(delivery_details) = tasks.get("deliveryDetails") {
+            if let Some(reg_data) = delivery_details.get("regData") {
+                if let Some(delivery_info) = reg_data.get("deliveryDetails") {
+                    if let Some(address) = delivery_info.get("address") {
+                        // Extract specific delivery center address for Turkey
+                        if let Some(addr1) = address.get("address1").and_then(|v| v.as_str()) {
+                            if addr1 == "EU-TR-Istanbul" {
+                                // Use standard Istanbul delivery center address
+                                snapshot.delivery_address = Some("Tesla Delivery Istanbul No:15 Göktuğ Cad Orhanlı İstanbul, 34956".to_string());
+                            } else if !addr1.is_empty() {
+                                let mut addr_parts = Vec::new();
+                                addr_parts.push(addr1);
+                                if let Some(city) = address.get("city").and_then(|v| v.as_str()) {
+                                    if !city.is_empty() && city != addr1 {
+                                        addr_parts.push(city);
+                                    }
+                                }
+                                snapshot.delivery_address = Some(addr_parts.join(", "));
+                            }
+                        }
+                    }
+
+                    // Extract delivery type
+                    snapshot.delivery_type = delivery_info
+                        .get("deliveryType")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                }
+            }
+        }
+
+        // Extract payment details and paid amounts
+        if let Some(final_payment) = tasks.get("finalPayment") {
+            if let Some(data) = final_payment.get("data") {
+                // Extract payment details array if available
+                if let Some(payment_details) = data.get("paymentDetails") {
+                    if let Some(details_array) = payment_details.as_array() {
+                        let mut paid_list = Vec::new();
+                        for detail in details_array {
+                            if let (Some(amount), Some(date)) = (
+                                detail.get("amount").and_then(|v| v.as_i64()),
+                                detail.get("paymentDate").and_then(|v| v.as_str()),
+                            ) {
+                                paid_list
+                                    .push((format_formatted_number(amount), format_date(date)));
+                            }
+                        }
+                        if !paid_list.is_empty() {
+                            snapshot.paid_amounts = Some(paid_list);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Extract payment method from financing or final payment
+        if snapshot.payment_method.is_none() {
+            if let Some(financing) = tasks.get("financing") {
+                // Check for payment method in various places
+                if let Some(payment_method) = financing
+                    .get("paymentMethod")
+                    .or_else(|| financing.get("selectedPaymentMethod"))
+                    .or_else(|| financing.get("financeIntent"))
+                    .and_then(|v| v.as_str())
+                {
+                    snapshot.payment_method = Some(payment_method.to_string());
+                }
+            }
+        }
+
+        // If still no payment method, check final payment data
+        if snapshot.payment_method.is_none() {
+            if let Some(final_payment) = tasks.get("finalPayment") {
+                if let Some(data) = final_payment.get("data") {
+                    if let Some(payment_method) = data
+                        .get("paymentMethod")
+                        .or_else(|| data.get("orderType"))
+                        .and_then(|v| v.as_str())
+                    {
+                        snapshot.payment_method = Some(payment_method.to_string());
+                    }
+                }
             }
         }
     }
@@ -396,133 +729,308 @@ pub fn create_order_snapshot(order: &Order, details: &serde_json::Value) -> Orde
     snapshot
 }
 
-pub fn format_order_changes(
-    order_reference: &str,
-    changes: &[OrderChange],
-    new_snapshot: &OrderSnapshot,
+pub fn format_order_summary(
+    snapshot: &OrderSnapshot,
+    changes: Option<&[OrderChange]>,
+    language: &str,
 ) -> String {
     let mut message = String::new();
 
-    // Find the most significant change and create a header
-    // Priority: Status > VIN > Odometer > Location > Date
-    for change in changes {
-        match change.field.as_str() {
-            "Status" => {
-                message.push_str(&format!(
-                    "📊 Order Status Updated: {}\n",
-                    change.context_message
-                ));
-                break;
-            }
-            "VIN" => {
-                message.push_str(&format!("🎯 VIN Assignment: {}\n", change.context_message));
-                break;
-            }
-            "Vehicle Odometer" => {
-                message.push_str(&format!(
-                    "🚗 Vehicle Movement Detected: {}\n",
-                    change.context_message
-                ));
-                break;
-            }
-            "Delivery Center" => {
-                message.push_str(&format!(
-                    "🏢 Delivery Location Changed: {}\n",
-                    change.context_message
-                ));
-                break;
-            }
-            "Delivery Window" | "ETA to Delivery Center" => {
-                message.push_str(&format!(
-                    "📅 Delivery Schedule Updated: {}\n",
-                    change.context_message
-                ));
-                break;
-            }
-            _ => {}
-        }
-    }
+    // Header with green checkmark
+    message.push_str("✅ ");
+    message.push_str(&t(language, "tesla.orders.summary_header"));
 
-    // Add git diff style changes
-    message.push('\n');
-    for change in changes {
-        match change.change_type {
-            ChangeType::Modified => {
-                if let (Some(old_val), Some(new_val)) = (&change.old_value, &change.new_value) {
-                    message.push_str(&format!("🔴 - {}: {}\n", change.field, old_val));
-                    message.push_str(&format!("🟢 + {}: {}\n", change.field, new_val));
-                }
-            }
-            ChangeType::Added => {
-                if let Some(new_val) = &change.new_value {
-                    message.push_str(&format!("🟢 + {}: {}\n", change.field, new_val));
-                }
-            }
-            ChangeType::Removed => {
-                if let Some(old_val) = &change.old_value {
-                    message.push_str(&format!("🔴 - {}: {}\n", change.field, old_val));
-                }
-            }
-        }
-    }
-    message.push_str(&format!("\n{}\n\n", "=".repeat(50)));
-
-    // Order Details
-    message.push_str("📋 Order Details:\n");
-    message.push_str(&format!("- Order ID: {}\n", order_reference));
-    message.push_str(&format!("- Status: {}\n", new_snapshot.status));
-    message.push_str(&format!("- Model: {}\n", new_snapshot.model));
+    // Basic order info section
     message.push_str(&format!(
-        "- VIN: {}\n\n",
-        new_snapshot.vin.as_deref().unwrap_or("N/A")
+        "📋 {} | {}\n",
+        t(language, "tesla.orders.order_number"),
+        snapshot.order_id
     ));
 
-    // Reservation Details
-    if new_snapshot.reservation_date.is_some() || new_snapshot.order_booked_date.is_some() {
-        message.push_str("📅 Reservation Details:\n");
-        if let Some(res_date) = &new_snapshot.reservation_date {
-            message.push_str(&format!("- Reservation Date: {}\n", format_date(res_date)));
-        }
-        if let Some(book_date) = &new_snapshot.order_booked_date {
-            message.push_str(&format!(
-                "- Order Booked Date: {}\n",
-                format_date(book_date)
-            ));
-        }
-        message.push('\n');
-    }
-
-    // Vehicle Status
-    if new_snapshot.vehicle_odometer.is_some() {
-        message.push_str("🚙 Vehicle Status:\n");
-        if let Some(odometer) = new_snapshot.vehicle_odometer {
-            let odo_type = new_snapshot.odometer_type.as_deref().unwrap_or("KM");
-            message.push_str(&format!(
-                "- Vehicle Odometer: {:.2} {}\n",
-                odometer, odo_type
-            ));
-        }
-        message.push('\n');
-    }
-
-    // Delivery Information
-    message.push_str("🚚 Delivery Information:\n");
-    if let Some(routing) = new_snapshot.routing_location {
-        message.push_str(&format!("- Routing Location: {}\n", routing));
-    }
-    if let Some(window) = &new_snapshot.delivery_window {
-        message.push_str(&format!("- Delivery Window: {}\n", window));
-    }
-    if let Some(eta) = &new_snapshot.eta_to_delivery_center {
-        message.push_str(&format!("- ETA to Delivery Center: {}\n", format_date(eta)));
-    }
-    if let Some(appointment) = &new_snapshot.delivery_appointment {
+    if let Some(vin) = &snapshot.vin {
         message.push_str(&format!(
-            "- Delivery Appointment: {}\n",
+            "🚗 {} | {}\n",
+            t(language, "tesla.orders.vin"),
+            vin
+        ));
+    }
+
+    // Order date with calendar emoji
+    if let Some(res_date) = &snapshot.reservation_date {
+        message.push_str(&format!(
+            "📅 {} | {}\n",
+            t(language, "tesla.orders.order_date"),
+            format_date(res_date)
+        ));
+    }
+
+    // Reservation payment with money emoji
+    if let Some(reservation_amount) = snapshot.reservation_amount {
+        message.push_str(&format!(
+            "💰 {} | {} TL\n",
+            t(language, "tesla.orders.reservation_payment"),
+            format_formatted_number(reservation_amount)
+        ));
+    }
+
+    // Remaining amount with chart emoji
+    if let Some(amount_due) = snapshot.amount_due {
+        message.push_str(&format!(
+            "📊 {} | {} TL\n",
+            t(language, "tesla.orders.remaining_amount"),
+            format_formatted_number(amount_due)
+        ));
+    }
+
+    // Vehicle odometer with ruler emoji
+    if let Some(odometer) = snapshot.vehicle_odometer {
+        let odo_type = snapshot.odometer_type.as_deref().unwrap_or("km");
+        message.push_str(&format!(
+            "📏 {} | {:.2} {}\n",
+            t(language, "tesla.orders.kilometers"),
+            odometer,
+            odo_type
+        ));
+    }
+
+    // Delivery information section with calendar+location emojis
+    message.push_str("\n📅 ");
+    message.push_str(&t(language, "tesla.orders.delivery_info"));
+    message.push('\n');
+
+    if let Some(delivery_window) = &snapshot.delivery_window {
+        message.push_str(&format!(
+            "⏰ {} | {}\n",
+            t(language, "tesla.orders.estimated_delivery_range"),
+            delivery_window
+        ));
+    }
+
+    if let Some(eta) = &snapshot.eta_to_delivery_center {
+        // For ETA to delivery center, show only date in YYYY-MM-DD format if it's midnight
+        let formatted_eta = if let Ok(dt) = DateTime::parse_from_rfc3339(eta) {
+            if dt.hour() == 0 && dt.minute() == 0 && dt.second() == 0 {
+                dt.format("%Y-%m-%d").to_string()
+            } else {
+                format_date(eta)
+            }
+        } else {
+            // Try parsing without timezone and add Z
+            let eta_with_z = if eta.contains('Z') || eta.contains('+') || eta.contains('-') {
+                eta.to_string()
+            } else {
+                format!("{}Z", eta)
+            };
+
+            if let Ok(dt) = DateTime::parse_from_rfc3339(&eta_with_z) {
+                if dt.hour() == 0 && dt.minute() == 0 && dt.second() == 0 {
+                    dt.format("%Y-%m-%d").to_string()
+                } else {
+                    format_date(eta)
+                }
+            } else {
+                eta.to_string()
+            }
+        };
+
+        message.push_str(&format!(
+            "🚚 {} | {}\n",
+            t(language, "tesla.orders.delivery_city"),
+            formatted_eta
+        ));
+    }
+
+    // Always show delivery date - show actual date if available, otherwise show "TBD" or similar
+    if let Some(appointment) = &snapshot.delivery_appointment {
+        message.push_str(&format!(
+            "📅 {} | {}\n",
+            t(language, "tesla.orders.delivery_date"),
             format_date(appointment)
         ));
     } else {
-        message.push_str("- Delivery Appointment: N/A\n");
+        // Show "TBD" or "Belirtilmemiş" if no delivery date yet
+        let no_date_text = if language == "tr" {
+            "Belirtilmemiş"
+        } else {
+            "TBD"
+        };
+        message.push_str(&format!(
+            "📅 {} | {}\n",
+            t(language, "tesla.orders.delivery_date"),
+            no_date_text
+        ));
+    }
+
+    // Delivery address with location pin
+    if let Some(address) = &snapshot.delivery_address {
+        message.push_str(&format!(
+            "\n📍 {} | {}\n",
+            t(language, "tesla.orders.delivery_address"),
+            address
+        ));
+        // Location link with pin emoji
+        message.push_str(&format!(
+            "📍 {} | Google Maps\n",
+            t(language, "tesla.orders.delivery_location")
+        ));
+    }
+
+    // Insurance information with shield emoji - always show this section
+    message.push_str("\n🛡️ ");
+    message.push_str(&t(language, "tesla.orders.insurance_details"));
+    message.push('\n');
+
+    if let Some(insurance_status) = &snapshot.insurance_status {
+        let status_text = match insurance_status.as_str() {
+            "COMPLETE" => t(language, "tesla.orders.status_complete"),
+            "IGNORE" => t(language, "tesla.orders.status_incomplete"),
+            _ => insurance_status.to_string(),
+        };
+        message.push_str(&format!(
+            "📋 {} | {}\n",
+            t(language, "tesla.orders.insurance_status"),
+            status_text
+        ));
+    }
+
+    // Always show insurance policy number - show "None" if not available
+    let policy_num_text = match &snapshot.insurance_policy_number {
+        Some(policy_num) if !policy_num.is_empty() => policy_num.clone(),
+        _ => t(language, "tesla.orders.insurance_policy_none"),
+    };
+    message.push_str(&format!(
+        "📄 {} | {}\n",
+        t(language, "tesla.orders.insurance_policy_number"),
+        policy_num_text
+    ));
+
+    // Paid amounts section if exists
+    if let Some(paid_amounts) = &snapshot.paid_amounts {
+        if !paid_amounts.is_empty() {
+            message.push_str("\n💸 ");
+            message.push_str(&t(language, "tesla.orders.paid_amounts"));
+            message.push('\n');
+            for (amount, date) in paid_amounts {
+                message.push_str(&format!("{} ({})\n", amount, date));
+            }
+        }
+    }
+
+    // Payment and financing section with money emoji
+    message.push_str("\n💰 ");
+    message.push_str(&t(language, "tesla.orders.payment_financing"));
+    message.push('\n');
+
+    if let Some(financing_status) = &snapshot.financing_status {
+        let status_text = match financing_status.as_str() {
+            "ACCEPT_FINAL_PRICE" => t(language, "tesla.orders.status_accept_final_price"),
+            "COMPLETE" => t(language, "tesla.orders.status_complete"),
+            "SELECT_A_FINANCE_INTENT" => t(language, "tesla.orders.status_not_selected"),
+            _ => financing_status.to_string(),
+        };
+        message.push_str(&format!(
+            "📈 {} | {}\n",
+            t(language, "tesla.orders.financing_status"),
+            status_text
+        ));
+    }
+
+    // Show remaining amount (Kalan Tutar)
+    if let Some(amount_due) = snapshot.amount_due {
+        message.push_str(&format!(
+            "📊 {} | {} TL\n",
+            t(language, "tesla.orders.remaining_amount"),
+            format_formatted_number(amount_due)
+        ));
+    }
+
+    // Show final payment amount
+    if let Some(amount_due) = snapshot.amount_due {
+        message.push_str(&format!(
+            "💵 {} | {} TL\n",
+            t(language, "tesla.orders.final_payment_amount"),
+            format_formatted_number(amount_due)
+        ));
+    }
+
+    // Then show final payment status
+    if let Some(final_payment_status) = &snapshot.final_payment_status {
+        let status_text = match final_payment_status.as_str() {
+            "MAKE_YOUR_FINAL_PAYMENT" => t(language, "tesla.orders.status_make_your_final_payment"),
+            "COMPLETE" => t(language, "tesla.orders.status_payment_complete"),
+            _ => final_payment_status.to_string(),
+        };
+        message.push_str(&format!(
+            "📅 {} | {}\n",
+            t(language, "tesla.orders.final_payment_status_label"),
+            status_text
+        ));
+    }
+
+    // Add payment method - show Cash if payment method is cash or empty
+    let payment_method_text = match &snapshot.payment_method {
+        Some(method) if method.to_lowercase() == "cash" || method.to_lowercase() == "nakit" => {
+            t(language, "tesla.orders.payment_method_cash")
+        }
+        Some(method) if !method.is_empty() => method.clone(),
+        _ => t(language, "tesla.orders.payment_method_cash"), // Default to Cash
+    };
+    message.push_str(&format!(
+        "💳 {} | {}\n",
+        t(language, "tesla.orders.payment_method"),
+        payment_method_text
+    ));
+
+    // Show changes if any
+    if let Some(changes) = changes {
+        if !changes.is_empty() {
+            message.push_str(&format!(
+                "\n🔄 {}\n",
+                t(language, "tesla.orders.changes_detected")
+            ));
+            for change in changes {
+                match change.change_type {
+                    ChangeType::Modified => {
+                        if let (Some(old_val), Some(new_val)) =
+                            (&change.old_value, &change.new_value)
+                        {
+                            message.push_str(&format!("🔴 - {}: {}\n", change.field, old_val));
+                            message.push_str(&format!("🟢 + {}: {}\n", change.field, new_val));
+                        }
+                    }
+                    ChangeType::Added => {
+                        if let Some(new_val) = &change.new_value {
+                            message.push_str(&format!("🟢 + {}: {}\n", change.field, new_val));
+                        }
+                    }
+                    ChangeType::Removed => {
+                        if let Some(old_val) = &change.old_value {
+                            message.push_str(&format!("🔴 - {}: {}\n", change.field, old_val));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add Tesla community link with flag emoji
+    message.push_str(&format!(
+        "\n🏁 {}",
+        t(language, "tesla.orders.community_link")
+    ));
+
+    // Add isMoreThanTwoWeeks info if available with appropriate emoji
+    if let Some(is_more_than_two_weeks) = snapshot.is_more_than_two_weeks {
+        let yes_no_text = if is_more_than_two_weeks {
+            t(language, "tesla.orders.yes")
+        } else {
+            t(language, "tesla.orders.no")
+        };
+        message.push_str(&format!(
+            "\n⏰ {}: {}",
+            t(language, "tesla.orders.more_than_two_weeks"),
+            yes_no_text
+        ));
     }
 
     message
@@ -644,6 +1152,126 @@ pub fn compare_orders(
             field: "Delivery Center".to_string(),
             old_value: old_snapshot.routing_location.map(|v| v.to_string()),
             new_value: new_snapshot.routing_location.map(|v| v.to_string()),
+            change_type: ChangeType::Modified,
+            context_message,
+        });
+    }
+
+    // Reservation amount changes
+    if old_snapshot.reservation_amount != new_snapshot.reservation_amount {
+        let context_message = "💰 Reservation amount updated".to_string();
+
+        changes.push(OrderChange {
+            field: "Reservation Amount".to_string(),
+            old_value: old_snapshot.reservation_amount.map(|v| format!("{} TL", v)),
+            new_value: new_snapshot.reservation_amount.map(|v| format!("{} TL", v)),
+            change_type: ChangeType::Modified,
+            context_message,
+        });
+    }
+
+    // Amount due changes
+    if old_snapshot.amount_due != new_snapshot.amount_due {
+        let context_message = "💸 Amount due updated".to_string();
+
+        changes.push(OrderChange {
+            field: "Amount Due".to_string(),
+            old_value: old_snapshot.amount_due.map(|v| format!("{} TL", v)),
+            new_value: new_snapshot.amount_due.map(|v| format!("{} TL", v)),
+            change_type: ChangeType::Modified,
+            context_message,
+        });
+    }
+
+    // Insurance status changes
+    if old_snapshot.insurance_status != new_snapshot.insurance_status {
+        let context_message = match new_snapshot.insurance_status.as_deref() {
+            Some("COMPLETE") => "🛡️ Insurance completed!".to_string(),
+            Some("IGNORE") => "🛡️ Insurance requirement ignored".to_string(),
+            _ => "🛡️ Insurance status updated".to_string(),
+        };
+
+        changes.push(OrderChange {
+            field: "Insurance Status".to_string(),
+            old_value: old_snapshot.insurance_status.clone(),
+            new_value: new_snapshot.insurance_status.clone(),
+            change_type: ChangeType::Modified,
+            context_message,
+        });
+    }
+
+    // Insurance policy number changes
+    if old_snapshot.insurance_policy_number != new_snapshot.insurance_policy_number {
+        let context_message = "📜 Insurance policy number updated".to_string();
+
+        changes.push(OrderChange {
+            field: "Insurance Policy Number".to_string(),
+            old_value: old_snapshot.insurance_policy_number.clone(),
+            new_value: new_snapshot.insurance_policy_number.clone(),
+            change_type: ChangeType::Modified,
+            context_message,
+        });
+    }
+
+    // Financing status changes
+    if old_snapshot.financing_status != new_snapshot.financing_status {
+        let context_message = match new_snapshot.financing_status.as_deref() {
+            Some("ACCEPT_FINAL_PRICE") => "💰 Ready for final price acceptance".to_string(),
+            Some("COMPLETE") => "💰 Financing completed!".to_string(),
+            _ => "💰 Financing status updated".to_string(),
+        };
+
+        changes.push(OrderChange {
+            field: "Financing Status".to_string(),
+            old_value: old_snapshot.financing_status.clone(),
+            new_value: new_snapshot.financing_status.clone(),
+            change_type: ChangeType::Modified,
+            context_message,
+        });
+    }
+
+    // Final payment status changes
+    if old_snapshot.final_payment_status != new_snapshot.final_payment_status {
+        let context_message = match new_snapshot.final_payment_status.as_deref() {
+            Some("MAKE_YOUR_FINAL_PAYMENT") => "💳 Time to make final payment!".to_string(),
+            Some("COMPLETE") => "✅ Final payment completed!".to_string(),
+            _ => "💳 Final payment status updated".to_string(),
+        };
+
+        changes.push(OrderChange {
+            field: "Final Payment Status".to_string(),
+            old_value: old_snapshot.final_payment_status.clone(),
+            new_value: new_snapshot.final_payment_status.clone(),
+            change_type: ChangeType::Modified,
+            context_message,
+        });
+    }
+
+    // Delivery address changes
+    if old_snapshot.delivery_address != new_snapshot.delivery_address {
+        let context_message = "📍 Delivery address updated".to_string();
+
+        changes.push(OrderChange {
+            field: "Delivery Address".to_string(),
+            old_value: old_snapshot.delivery_address.clone(),
+            new_value: new_snapshot.delivery_address.clone(),
+            change_type: ChangeType::Modified,
+            context_message,
+        });
+    }
+
+    // More than two weeks flag changes
+    if old_snapshot.is_more_than_two_weeks != new_snapshot.is_more_than_two_weeks {
+        let context_message = match new_snapshot.is_more_than_two_weeks {
+            Some(true) => "📅 Delivery is more than two weeks away".to_string(),
+            Some(false) => "🚀 Delivery is within two weeks!".to_string(),
+            None => "📅 Delivery timing information updated".to_string(),
+        };
+
+        changes.push(OrderChange {
+            field: "Delivery Timing".to_string(),
+            old_value: old_snapshot.is_more_than_two_weeks.map(|v| v.to_string()),
+            new_value: new_snapshot.is_more_than_two_weeks.map(|v| v.to_string()),
             change_type: ChangeType::Modified,
             context_message,
         });
@@ -831,6 +1459,7 @@ pub fn schema() -> UpdateHandler<anyhow::Error> {
 
     let command_handler = teloxide::filter_command::<Command, _>()
         .branch(case![Command::Start].endpoint(start))
+        .branch(case![Command::Help].endpoint(help))
         .branch(case![Command::OrderStatus].endpoint(order_status))
         .branch(case![Command::Login].endpoint(login))
         .branch(case![Command::Logout].endpoint(logout))
@@ -838,6 +1467,7 @@ pub fn schema() -> UpdateHandler<anyhow::Error> {
         .branch(case![Command::EnableMonitoring].endpoint(enable_monitoring))
         .branch(case![Command::DisableMonitoring].endpoint(disable_monitoring))
         .branch(case![Command::MonitoringStatus].endpoint(monitoring_status))
+        .branch(case![Command::Language { code }].endpoint(language))
         .branch(case![Command::Teslacron].endpoint(teslacron));
 
     let message_handler = Update::filter_message()
@@ -856,6 +1486,8 @@ pub fn schema() -> UpdateHandler<anyhow::Error> {
 enum Command {
     #[command(description = "Start the bot")]
     Start,
+    #[command(description = "Show available commands")]
+    Help,
     #[command(description = "Get your Tesla order status")]
     OrderStatus,
     #[command(description = "Login to Tesla account")]
@@ -870,6 +1502,8 @@ enum Command {
     DisableMonitoring,
     #[command(description = "Check monitoring status")]
     MonitoringStatus,
+    #[command(description = "Change language preference")]
+    Language { code: String },
     #[command(
         description = "Set Tesla monitoring interval in seconds (admin only). Usage: /teslacron <seconds>"
     )]
@@ -877,30 +1511,116 @@ enum Command {
 }
 
 async fn start(bot: Bot, dialogue: TeslaDialogue, msg: Message) -> Result<()> {
-    bot.send_message(
-        msg.chat.id,
-        "Welcome to Tesla Order Status Bot! 🚗\n\n\
-        Features:\n\
-        • Check your Tesla order status\n\
-        • Automatic monitoring (checks every 5 minutes)\n\
-        • Get notified only when something changes\n\n\
-        Commands:\n\
-        • /login - Authenticate with Tesla\n\
-        • /orderstatus - Check order status\n\
-        • /enablemonitoring - Turn on auto-monitoring\n\
-        • /disablemonitoring - Turn off auto-monitoring\n\
-        • /monitoringstatus - Check monitoring status\n\
-        • /logout - Remove authentication\n\n\
-        Start by using /login to authenticate!",
-    )
-    .await?;
+    // Detect language from message
+    let detected_language = I18n::detect_language(&msg);
+
+    // Create chat record if it doesn't exist
+    let mut conn = notifine::establish_connection();
+    let existing_chat = notifine::find_chat_by_telegram_chat_id(&msg.chat.id.0.to_string());
+
+    if existing_chat.is_none() {
+        let new_chat = notifine::models::NewChat {
+            name: "Tesla Bot User",
+            telegram_id: &msg.chat.id.0.to_string(),
+            webhook_url: "",
+            thread_id: None,
+            language: &detected_language,
+        };
+
+        diesel::insert_into(notifine::schema::chats::table)
+            .values(&new_chat)
+            .execute(&mut conn)
+            .ok();
+    } else {
+        // Update language if chat exists
+        I18N.save_user_language(msg.chat.id.0, &detected_language);
+    }
+
+    // Get translated welcome message
+    let welcome_message = t(&detected_language, "tesla.welcome");
+
+    bot.send_message(msg.chat.id, welcome_message).await?;
     dialogue.update(State::Start).await?;
+    Ok(())
+}
+
+async fn help(bot: Bot, msg: Message) -> Result<()> {
+    // Get user language
+    let user_language = I18N.get_user_language(msg.chat.id.0);
+
+    // Get translated help message
+    let help_message = t(&user_language, "tesla.help.user_commands");
+
+    bot.send_message(msg.chat.id, help_message).await?;
+    Ok(())
+}
+
+async fn language(bot: Bot, msg: Message, code: String) -> Result<()> {
+    let chat_id = msg.chat.id;
+
+    // Ensure chat record exists
+    let mut conn = notifine::establish_connection();
+    let existing_chat = notifine::find_chat_by_telegram_chat_id(&chat_id.0.to_string());
+
+    if existing_chat.is_none() {
+        let new_chat = notifine::models::NewChat {
+            name: "Tesla Bot User",
+            telegram_id: &chat_id.0.to_string(),
+            webhook_url: "",
+            thread_id: None,
+            language: "en", // Default to English
+        };
+
+        diesel::insert_into(notifine::schema::chats::table)
+            .values(&new_chat)
+            .execute(&mut conn)
+            .ok();
+    }
+
+    let current_language = I18N.get_user_language(chat_id.0);
+
+    // If empty string, show current language and available options
+    if code.trim().is_empty() {
+        let current_message = if current_language == "tr" {
+            t("tr", "tesla.language.current")
+        } else {
+            t("en", "tesla.language.current")
+        };
+        bot.send_message(chat_id, current_message).await?;
+    } else {
+        // Change language
+        match code.as_str() {
+            "en" | "tr" => {
+                if current_language == code {
+                    // User is already using this language
+                    let same_message = t(&code, "tesla.language.same");
+                    bot.send_message(chat_id, same_message).await?;
+                } else {
+                    // Save new language preference
+                    I18N.save_user_language(chat_id.0, &code);
+
+                    // Send confirmation in new language
+                    let changed_message = t(&code, "tesla.language.changed");
+                    bot.send_message(chat_id, changed_message).await?;
+                }
+            }
+            _ => {
+                // Invalid language code
+                let invalid_message = t(&current_language, "tesla.language.invalid");
+                bot.send_message(chat_id, invalid_message).await?;
+            }
+        }
+    }
+
     Ok(())
 }
 
 async fn login(bot: Bot, dialogue: TeslaDialogue, msg: Message) -> Result<()> {
     let chat_id = msg.chat.id;
     log::info!("LOGIN: User {} initiated login process", chat_id);
+
+    // Get user language
+    let user_language = I18N.get_user_language(chat_id.0);
 
     // Check if already authenticated with valid token
     let mut conn = notifine::establish_connection();
@@ -921,7 +1641,7 @@ async fn login(bot: Bot, dialogue: TeslaDialogue, msg: Message) -> Result<()> {
             );
             bot.send_message(
                 chat_id,
-                "You are already logged in! Use /orderstatus to check your orders.",
+                t(&user_language, "tesla.auth.already_authenticated"),
             )
             .await?;
             return Ok(());
@@ -943,23 +1663,10 @@ async fn login(bot: Bot, dialogue: TeslaDialogue, msg: Message) -> Result<()> {
     );
 
     // Send the auth URL for manual login
-    bot.send_message(
-        chat_id,
-        format!(
-            "🚗 Tesla Account Login\n\n\
-            Please follow these steps:\n\n\
-            1️⃣ Click this link to open Tesla login in your browser:\n{}\n\n\
-            2️⃣ Log in with your Tesla account credentials\n\n\
-            3️⃣ After login, you'll be redirected to a page that shows \"Page Not Found\" - this is normal!\n\n\
-            4️⃣ Copy the entire URL from your browser's address bar\n\n\
-            5️⃣ Come back here and paste the URL\n\n\
-            📋 The URL will look like:\nhttps://auth.tesla.com/void/callback?code=...\n\n\
-            ⏳ Waiting for your authentication URL...",
-            auth_url
-        ),
-    )
-    .disable_web_page_preview(true)
-    .await?;
+    let login_message = t(&user_language, "tesla.auth.login_url_message");
+    bot.send_message(chat_id, login_message.replace("{}", &auth_url))
+        .disable_web_page_preview(true)
+        .await?;
 
     // Update dialogue state with code_verifier
     dialogue
@@ -1003,6 +1710,9 @@ async fn receive_auth_url(
 async fn order_status(bot: Bot, msg: Message) -> Result<()> {
     let chat_id = msg.chat.id;
 
+    // Get user language
+    let user_language = I18N.get_user_language(chat_id.0);
+
     // Get authentication from database
     let mut conn = notifine::establish_connection();
     let auth = match tesla_auth::table
@@ -1012,11 +1722,8 @@ async fn order_status(bot: Bot, msg: Message) -> Result<()> {
     {
         Some(auth) => auth,
         None => {
-            bot.send_message(
-                chat_id,
-                "You need to login first! Use /login to authenticate.",
-            )
-            .await?;
+            bot.send_message(chat_id, t(&user_language, "tesla.auth.login_required"))
+                .await?;
             return Ok(());
         }
     };
@@ -1024,53 +1731,28 @@ async fn order_status(bot: Bot, msg: Message) -> Result<()> {
     let client = Client::new();
     let crypto = get_token_crypto()?;
 
-    // Decrypt the access token
-    let mut access_token = crypto.decrypt(&auth.access_token)?;
+    let access_token = match refresh_access_token_if_needed(&client, &auth, &crypto).await {
+        Ok(token) => token,
+        Err(e) => {
+            diesel::delete(tesla_auth::table.filter(tesla_auth::chat_id.eq(chat_id.0)))
+                .execute(&mut conn)?;
 
-    // Check if token is valid, refresh if needed
-    let token_valid = is_token_valid(&access_token).unwrap_or(false);
-    if !token_valid {
-        // Decrypt refresh token for use
-        let refresh_token = crypto.decrypt(&auth.refresh_token)?;
-        match refresh_tokens(&client, &refresh_token).await {
-            Ok(new_tokens) => {
-                // Encrypt new tokens before updating database
-                let encrypted_access_token = crypto.encrypt(&new_tokens.access_token)?;
-
-                // Update tokens in database
-                diesel::update(tesla_auth::table.filter(tesla_auth::chat_id.eq(chat_id.0)))
-                    .set((
-                        tesla_auth::access_token.eq(&encrypted_access_token),
-                        tesla_auth::expires_in.eq(new_tokens.expires_in as i64),
-                        tesla_auth::updated_at.eq(diesel::dsl::now),
-                    ))
-                    .execute(&mut conn)?;
-
-                access_token = new_tokens.access_token;
-            }
-            Err(e) => {
-                // Delete the invalid auth and ask user to login again
-                diesel::delete(tesla_auth::table.filter(tesla_auth::chat_id.eq(chat_id.0)))
-                    .execute(&mut conn)?;
-
-                bot.send_message(
-                    chat_id,
-                    format!("Token expired or invalid: {}. Your authentication has been cleared. Please /login again.", e),
-                )
-                .await?;
-                return Ok(());
-            }
+            bot.send_message(
+                chat_id,
+                format!("Token expired or invalid: {}. Your authentication has been cleared. Please /login again.", e),
+            )
+            .await?;
+            return Ok(());
         }
-    }
+    };
 
-    // Fetch orders
-    bot.send_message(chat_id, "Fetching your Tesla orders... 🔄")
+    bot.send_message(chat_id, t(&user_language, "tesla.orders.fetching"))
         .await?;
 
     match retrieve_orders(&client, &access_token).await {
         Ok(orders) => {
             if orders.is_empty() {
-                bot.send_message(chat_id, "No orders found on your Tesla account.")
+                bot.send_message(chat_id, t(&user_language, "tesla.orders.no_orders_found"))
                     .await?;
             } else {
                 // Load existing order data from database
@@ -1134,82 +1816,14 @@ async fn order_status(bot: Bot, msg: Message) -> Result<()> {
 
                 // Show current order status using snapshots (REAL Tesla data only)
                 for snapshot in new_snapshots.iter() {
-                    let mut message = String::new();
-
-                    // Add changes at the top if there were any for this order
-                    if let Some((_, changes)) = all_changes
+                    // Check if there were any changes for this order
+                    let changes = all_changes
                         .iter()
                         .find(|(order_id, _)| order_id == &snapshot.order_id)
-                    {
-                        if !changes.is_empty() {
-                            message = format_order_changes(&snapshot.order_id, changes, snapshot);
-                            bot.send_message(chat_id, message).await?;
-                            continue; // Skip the regular order details since they're already included
-                        }
-                    }
+                        .map(|(_, changes)| changes.as_slice());
 
-                    // Order Details
-                    message.push_str("📋 Order Details:\n");
-                    message.push_str(&format!("- Order ID: {}\n", snapshot.order_id));
-                    message.push_str(&format!("- Status: {}\n", snapshot.status));
-                    message.push_str(&format!("- Model: {}\n", snapshot.model));
-                    message.push_str(&format!(
-                        "- VIN: {}\n\n",
-                        snapshot.vin.as_deref().unwrap_or("N/A")
-                    ));
-
-                    // Reservation Details
-                    if snapshot.reservation_date.is_some() || snapshot.order_booked_date.is_some() {
-                        message.push_str("📅 Reservation Details:\n");
-                        if let Some(res_date) = &snapshot.reservation_date {
-                            message.push_str(&format!(
-                                "- Reservation Date: {}\n",
-                                format_date(res_date)
-                            ));
-                        }
-                        if let Some(book_date) = &snapshot.order_booked_date {
-                            message.push_str(&format!(
-                                "- Order Booked Date: {}\n",
-                                format_date(book_date)
-                            ));
-                        }
-                        message.push('\n');
-                    }
-
-                    // Vehicle Status
-                    if snapshot.vehicle_odometer.is_some() {
-                        message.push_str("🚙 Vehicle Status:\n");
-                        if let Some(odometer) = snapshot.vehicle_odometer {
-                            let odo_type = snapshot.odometer_type.as_deref().unwrap_or("KM");
-                            message.push_str(&format!(
-                                "- Vehicle Odometer: {:.2} {}\n",
-                                odometer, odo_type
-                            ));
-                        }
-                        message.push('\n');
-                    }
-
-                    // Delivery Information
-                    message.push_str("🚚 Delivery Information:\n");
-                    if let Some(routing) = snapshot.routing_location {
-                        message.push_str(&format!("- Routing Location: {}\n", routing));
-                    }
-                    if let Some(window) = &snapshot.delivery_window {
-                        message.push_str(&format!("- Delivery Window: {}\n", window));
-                    }
-                    if let Some(eta) = &snapshot.eta_to_delivery_center {
-                        message
-                            .push_str(&format!("- ETA to Delivery Center: {}\n", format_date(eta)));
-                    }
-                    if let Some(appointment) = &snapshot.delivery_appointment {
-                        message.push_str(&format!(
-                            "- Delivery Appointment: {}\n",
-                            format_date(appointment)
-                        ));
-                    } else {
-                        message.push_str("- Delivery Appointment: N/A\n");
-                    }
-
+                    // Use the unified formatting function
+                    let message = format_order_summary(snapshot, changes, &user_language);
                     bot.send_message(chat_id, message).await?;
                 }
             }
@@ -1381,6 +1995,7 @@ async fn fetch_and_display_orders(
     chat_id: ChatId,
     client: &Client,
     access_token: &str,
+    language: &str,
 ) -> Result<()> {
     let _conn = notifine::establish_connection();
     match retrieve_orders(client, access_token).await {
@@ -1395,132 +2010,13 @@ async fn fetch_and_display_orders(
                 bot.send_message(chat_id, "No orders found on your Tesla account.")
                     .await?;
             } else {
-                // Format and send detailed order information (no database storage)
-                for (i, order) in orders.iter().enumerate() {
+                // Format and send detailed order information using unified format
+                for order in orders.iter() {
                     if let Ok(details) =
                         get_order_details(client, &order.reference_number, access_token).await
                     {
-                        let mut message = String::new();
-
-                        // Header
-                        message.push_str(&format!("🚗 Tesla Order {}\n", i + 1));
-                        message.push_str(&format!("{}\n\n", "=".repeat(45)));
-
-                        // Order Details
-                        message.push_str("📋 Order Details:\n");
-                        message.push_str(&format!("- Order ID: {}\n", order.reference_number));
-                        message.push_str(&format!("- Status: {}\n", order.order_status));
-                        message.push_str(&format!("- Model: {}\n", order.model_code));
-                        message.push_str(&format!(
-                            "- VIN: {}\n\n",
-                            order.vin.as_deref().unwrap_or("N/A")
-                        ));
-
-                        // Extract detailed information from tasks
-                        if let Some(tasks) = details.get("tasks") {
-                            // Reservation Details
-                            if let Some(registration) = tasks.get("registration") {
-                                if let Some(order_details) = registration.get("orderDetails") {
-                                    message.push_str("📅 Reservation Details:\n");
-
-                                    if let Some(reservation_date) = order_details
-                                        .get("reservationDate")
-                                        .and_then(|v| v.as_str())
-                                    {
-                                        message.push_str(&format!(
-                                            "- Reservation Date: {}\n",
-                                            format_date(reservation_date)
-                                        ));
-                                    }
-
-                                    if let Some(order_booked_date) = order_details
-                                        .get("orderBookedDate")
-                                        .and_then(|v| v.as_str())
-                                    {
-                                        message.push_str(&format!(
-                                            "- Order Booked Date: {}\n",
-                                            format_date(order_booked_date)
-                                        ));
-                                    }
-
-                                    message.push('\n');
-
-                                    // Vehicle Status
-                                    message.push_str("🚙 Vehicle Status:\n");
-
-                                    if let Some(odometer) = order_details
-                                        .get("vehicleOdometer")
-                                        .and_then(|v| v.as_f64())
-                                    {
-                                        let odometer_type = order_details
-                                            .get("vehicleOdometerType")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or("KM");
-                                        message.push_str(&format!(
-                                            "- Vehicle Odometer: {:.2} {}\n",
-                                            odometer, odometer_type
-                                        ));
-                                    }
-
-                                    message.push('\n');
-
-                                    // Delivery Information
-                                    message.push_str("🚚 Delivery Information:\n");
-
-                                    if let Some(routing_location) = order_details
-                                        .get("vehicleRoutingLocation")
-                                        .and_then(|v| v.as_u64())
-                                    {
-                                        message.push_str(&format!(
-                                            "- Routing Location: {}\n",
-                                            routing_location
-                                        ));
-                                    }
-                                }
-                            }
-
-                            // Scheduling information
-                            if let Some(scheduling) = tasks.get("scheduling") {
-                                if let Some(delivery_window) = scheduling
-                                    .get("deliveryWindowDisplay")
-                                    .and_then(|v| v.as_str())
-                                {
-                                    message.push_str(&format!(
-                                        "- Delivery Window: {}\n",
-                                        delivery_window
-                                    ));
-                                }
-
-                                if let Some(appointment) = scheduling
-                                    .get("apptDateTimeAddressStr")
-                                    .and_then(|v| v.as_str())
-                                {
-                                    message.push_str(&format!(
-                                        "- Delivery Appointment: {}\n",
-                                        format_date(appointment)
-                                    ));
-                                } else {
-                                    message.push_str("- Delivery Appointment: N/A\n");
-                                }
-                            }
-
-                            // Final Payment / ETA information
-                            if let Some(final_payment) = tasks.get("finalPayment") {
-                                if let Some(data) = final_payment.get("data") {
-                                    if let Some(eta) =
-                                        data.get("etaToDeliveryCenter").and_then(|v| v.as_str())
-                                    {
-                                        message.push_str(&format!(
-                                            "- ETA to Delivery Center: {}\n",
-                                            format_date(eta)
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-
-                        message.push_str(&format!("\n{}\n", "=".repeat(45)));
-
+                        let snapshot = create_order_snapshot(order, &details);
+                        let message = format_order_summary(&snapshot, None, language);
                         bot.send_message(chat_id, message).await?;
                     }
                 }
@@ -1544,6 +2040,8 @@ async fn receive_auth_url_internal(
     url_text: &str,
     code_verifier: String,
 ) -> Result<()> {
+    // Get user language
+    let user_language = I18N.get_user_language(chat_id.0);
     // Parse the URL
     let parsed_url = match Url::parse(url_text) {
         Ok(url) => url,
@@ -1598,7 +2096,14 @@ async fn receive_auth_url_internal(
                 .await?;
 
                 // Automatically fetch and display order status
-                fetch_and_display_orders(&bot, chat_id, &client, &tokens.access_token).await?;
+                fetch_and_display_orders(
+                    &bot,
+                    chat_id,
+                    &client,
+                    &tokens.access_token,
+                    &user_language,
+                )
+                .await?;
 
                 dialogue.update(State::Start).await?;
             }
@@ -1743,24 +2248,42 @@ mod tests {
             delivery_window: Some("Feb 1-8, 2024".to_string()),
             eta_to_delivery_center: None,
             delivery_appointment: None,
+            reservation_amount: None,
+            order_amount: None,
+            amount_due: None,
+            insurance_policy_number: None,
+            insurance_status: None,
+            delivery_address: None,
+            delivery_type: None,
+            is_more_than_two_weeks: Some(true),
+            financing_status: None,
+            final_payment_status: None,
+            payment_method: None,
+            paid_amounts: None,
         };
 
         assert_eq!(snapshot.vehicle_odometer, Some(100.0));
         assert_eq!(snapshot.routing_location, Some(9999));
         assert_eq!(snapshot.delivery_window, Some("Feb 1-8, 2024".to_string()));
+        assert_eq!(snapshot.is_more_than_two_weeks, Some(true));
     }
 
     #[test]
     fn test_format_date() {
-        // Test with valid ISO date string
+        // Test with valid ISO date string with time
         let iso_date = "2025-05-28T16:06:16.884647";
         let formatted = format_date(iso_date);
         assert_eq!(formatted, "28 May 2025 16:06:16");
 
-        // Test with another valid ISO date string
+        // Test with midnight time - should remove time part
         let iso_date2 = "2025-06-30T00:00:00";
         let formatted2 = format_date(iso_date2);
-        assert_eq!(formatted2, "30 June 2025 00:00:00");
+        assert_eq!(formatted2, "30 June 2025");
+
+        // Test with another midnight time in different format
+        let iso_date3 = "2025-06-14T00:00:00Z";
+        let formatted3 = format_date(iso_date3);
+        assert_eq!(formatted3, "14 June 2025");
 
         // Test with invalid date string - should return original
         let invalid_date = "invalid-date";

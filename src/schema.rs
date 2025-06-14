@@ -11,6 +11,8 @@ diesel::table! {
         webhook_url -> Varchar,
         #[max_length = 255]
         thread_id -> Nullable<Varchar>,
+        #[max_length = 5]
+        language -> Varchar,
     }
 }
 

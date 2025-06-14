@@ -16,9 +16,10 @@ use tokio::sync::Semaphore;
 use tokio::time::sleep;
 
 use crate::bots::tesla_bot::{
-    compare_orders, create_order_snapshot, format_order_changes, get_order_details, is_token_valid,
-    refresh_tokens, retrieve_orders, OrderSnapshot,
+    compare_orders, create_order_snapshot, format_order_summary, get_order_details,
+    refresh_access_token_if_needed, retrieve_orders, OrderSnapshot,
 };
+use notifine::i18n::I18N;
 
 const BATCH_SIZE: usize = 5;
 const DEFAULT_CHECK_INTERVAL_SECS: u64 = 10; // 5 minutes
@@ -97,36 +98,35 @@ async fn check_user_orders(auth: TeslaAuth, client: Arc<Client>, bot: Arc<Bot>) 
     let chat_id = ChatId(auth.chat_id);
     let crypto = get_token_crypto()?;
 
-    // Decrypt the access token
-    let mut access_token = crypto.decrypt(&auth.access_token)?;
+    let access_token = match refresh_access_token_if_needed(&client, &auth, &crypto).await {
+        Ok(token) => token,
+        Err(e) => {
+            error!("Failed to refresh token for chat {}: {}", auth.chat_id, e);
 
-    // Check if token is valid, refresh if needed
-    if !is_token_valid(&access_token).unwrap_or(false) {
-        let refresh_token = crypto.decrypt(&auth.refresh_token)?;
-        match refresh_tokens(&client, &refresh_token).await {
-            Ok(new_tokens) => {
-                // Encrypt and update tokens
-                let encrypted_access_token = crypto.encrypt(&new_tokens.access_token)?;
-                let mut conn = notifine::establish_connection();
-
-                diesel::update(tesla_auth::table.filter(tesla_auth::chat_id.eq(auth.chat_id)))
-                    .set((
-                        tesla_auth::access_token.eq(&encrypted_access_token),
-                        tesla_auth::expires_in.eq(new_tokens.expires_in as i64),
-                        tesla_auth::updated_at.eq(diesel::dsl::now),
-                    ))
-                    .execute(&mut conn)?;
-
-                access_token = new_tokens.access_token;
+            info!(
+                "Clearing invalid tokens for chat {} to force re-authentication",
+                auth.chat_id
+            );
+            let mut conn = notifine::establish_connection();
+            if let Err(delete_err) =
+                diesel::delete(tesla_auth::table.filter(tesla_auth::chat_id.eq(auth.chat_id)))
+                    .execute(&mut conn)
+            {
+                error!(
+                    "Failed to clear invalid tokens for chat {}: {}",
+                    auth.chat_id, delete_err
+                );
+            } else if let Err(notify_err) = bot.send_message(
+                chat_id,
+                "🔐 Your Tesla authentication has expired and been cleared. Please use /login to re-authenticate and continue receiving order updates."
+            ).await {
+                error!("Failed to notify user {} about token expiration: {}", auth.chat_id, notify_err);
             }
-            Err(e) => {
-                error!("Failed to refresh token for chat {}: {}", auth.chat_id, e);
-                return Ok(()); // Skip this user
-            }
+
+            return Ok(());
         }
-    }
+    };
 
-    // Retrieve current orders
     let orders = match retrieve_orders(&client, &access_token).await {
         Ok(orders) => orders,
         Err(e) => {
@@ -174,9 +174,12 @@ async fn check_user_orders(auth: TeslaAuth, client: Arc<Client>, bot: Arc<Bot>) 
                     let changes = compare_orders(old_snapshot, &new_snapshot);
 
                     if !changes.is_empty() {
+                        // Get user language preference
+                        let user_language = I18N.get_user_language(auth.chat_id);
+
                         // Send notification about changes using the same formatting as /orderstatus
                         let message =
-                            format_order_changes(&order.reference_number, &changes, &new_snapshot);
+                            format_order_summary(&new_snapshot, Some(&changes), &user_language);
                         bot.send_message(chat_id, message).await?;
                         info!("Sent update notification to chat {}", auth.chat_id);
                     }

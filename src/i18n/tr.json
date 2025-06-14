@@ -1,0 +1,113 @@
+{
+  "tesla": {
+    "welcome": "Tesla Sipariş Durumu Bot'una Hoş Geldiniz! 🚗\n\nÖzellikler:\n• Tesla sipariş durumunuzu gerçek zamanlı takip edin\n• Durum değişikliklerinde otomatik bildirim alın\n• Detaylı sipariş bilgilerini görüntüleyin\n\nKomutlar:\n/login - Tesla hesabınızla kimlik doğrulama\n/orderstatus - Mevcut sipariş durumunu kontrol et\n/monitor - Otomatik durum takibini etkinleştir\n/unmonitor - Otomatik takibi devre dışı bırak\n/status - Mevcut sipariş detaylarını görüntüle\n/logout - Kimlik doğrulamanızı kaldır\n/help - Bu yardım mesajını göster\n\nTesla hesabınızı bağlamak için /login komutunu kullanarak başlayın!",
+    "auth": {
+      "already_authenticated": "Zaten giriş yaptınız! Siparişlerinizi kontrol etmek için /orderstatus kullanın.",
+      "login_required": "Önce giriş yapmanız gerekiyor! Kimlik doğrulama için /login kullanın.",
+      "login_url_message": "🚗 Tesla Hesap Girişi\n\nTesla hesabınıza giriş yapmak için aşağıdaki bağlantıya tıklayın:\n{}\n\nGiriş yaptıktan sonra boş bir sayfaya yönlendirileceksiniz. Tarayıcınızın adres çubuğundaki tüm URL'yi kopyalayın ve bana geri gönderin.\n\nURL şu şekilde görünecek:\nhttps://auth.tesla.com/void/callback?code=...\n\n⚠️ Not: Bu URL yetkilendirme kodunuzu içereceği için gizli tutun!",
+      "invalid_tesla_url": "Bu bir Tesla kimlik doğrulama URL'si gibi görünmüyor. \n\nLütfen giriş yaptıktan sonra tarayıcınızdan tüm URL'yi kopyalayın. \nŞu şekilde başlamalı: https://auth.tesla.com/void/callback?code=",
+      "token_expired": "Token süresi dolmuş veya geçersiz: {}. Kimlik doğrulamanız temizlendi. Lütfen tekrar /login yapın.",
+      "success": "Başarıyla giriş yapıldı! ✅\nTesla siparişleriniz getiriliyor...",
+      "invalid_url_format": "Geçersiz URL formatı. Lütfen https:// ile başlayan tam URL'yi gönderin",
+      "auth_code_not_found": "URL'de yetkilendirme kodu bulunamadı. Lütfen tam URL'yi kopyaladığınızdan emin olun.",
+      "logout_success": "Başarıyla çıkış yapıldı! Kimlik doğrulamanız kaldırıldı.",
+      "not_logged_in": "Giriş yapmadınız."
+    },
+    "orders": {
+      "fetching": "Tesla siparişleriniz getiriliyor... 🔄",
+      "no_orders_found": "Tesla hesabınızda sipariş bulunamadı.",
+      "basic_info_only": "📋 Temel sipariş bilgileri gösteriliyor. Tesla API değişiklikleri nedeniyle detaylı teslimat takibi geçici olarak kullanılamıyor.",
+      "status_updated": "📊 Sipariş Durumu Güncellendi: {}",
+      "vin_assigned": "🎯 VIN Ataması: {}",
+      "vehicle_movement": "🚗 Araç Hareketi Tespit Edildi: {}",
+      "delivery_location_changed": "🏢 Teslimat Lokasyonu Değişti: {}",
+      "delivery_schedule_updated": "📅 Teslimat Programı Güncellendi: {}",
+      "congratulations_delivered": "🎉 Tebrikler! Tesla'nız teslim edildi!",
+      "ready_for_delivery": "🚗 Harika haber! Tesla'nız teslimat için hazır!",
+      "in_transit": "🚛 Tesla'nız yolda!",
+      "in_production": "🏭 Tesla'nız üretimde!",
+      "vin_exciting": "🎯 Heyecan verici! Tesla'nıza VIN atandı!",
+      "vehicle_moved": "🚗💨 Hey! Araçınız hareket etti!",
+      "summary_header": "Sipariş Özeti\n",
+      "order_number": "Sipariş No",
+      "vin": "VIN",
+      "order_date": "Sipariş Tarihi",
+      "reservation_payment": "Rezervasyon Ödemesi",
+      "remaining_amount": "Kalan Tutar",
+      "kilometers": "Kilometre",
+      "delivery_info": "Teslimat Bilgileri",
+      "delivery_city": "Merkeze Tahmini Geliş",
+      "delivery_location": "Konum",
+      "delivery_address": "Teslimat Adresi",
+      "delivery_contact": "📞 Teslimat İletişim",
+      "insurance_policy_number": "Sigorta Poliçe Numarası",
+      "paid_amounts": "Ödenen Tutarlar",
+      "payment_method": "Ödeme Yöntemi",
+      "final_payment_amount": "Son Ödeme Tutarı",
+      "final_payment_status_label": "Son Ödeme Durumu",
+      "estimated_delivery_range": "Tahmini Teslimat Aralığı",
+      "delivery_date": "Teslimat Tarihi",
+      "delivery_appointment": "Teslimat Tarihi",
+      "insurance_details": "Sigorta Bilgileri",
+      "insurance_status": "Durum",
+      "payment_financing": "Ödeme ve Finansman",
+      "financing_status": "Finansman Durumu",
+      "payment_status": "Son Ödeme Tutarı",
+      "changes_detected": "Değişiklikler:",
+      "community_link": "Sohbet grubumuz Tesla Tayfa'ya katılın!",
+      "status_complete": "Tamamlandı",
+      "status_incomplete": "Gerekli değil",
+      "status_pending": "Beklemede",
+      "status_in_progress": "Devam ediyor",
+      "status_accept_final_price": "Final fiyat onayı bekleniyor",
+      "status_approved": "Onaylandı",
+      "status_pending_approval": "Onay beklemede",
+      "status_rejected": "Reddedildi",
+      "status_make_your_final_payment": "Final ödeme zamanı",
+      "status_payment_complete": "Ödeme tamamlandı",
+      "status_payment_pending": "Ödeme beklemede",
+      "status_not_selected": "Seçilmedi",
+      "payment_method_cash": "Nakit",
+      "insurance_policy_none": "Yok",
+      "more_than_two_weeks": "İki haftadan fazla",
+      "yes": "Evet",
+      "no": "Hayır"
+    },
+    "monitoring": {
+      "enabled": "✅ Otomatik takip etkinleştirildi!\n\nTesla sipariş durumunuzu her 5 dakikada kontrol edip değişiklikleri bildireceğim.",
+      "disabled": "🔕 Otomatik takip devre dışı bırakıldı.\n\nSipariş durumunuzu /orderstatus ile manuel olarak kontrol edebilirsiniz"
+    },
+    "admin": {
+      "only": "Üzgünüm, bu komut sadece yöneticiler tarafından kullanılabilir.",
+      "interval_updated": "✅ Tesla izleme aralığı güncellendi!\nYeni aralık: {} saniye\nÖnceki aralık: {} saniye",
+      "invalid_interval": "❌ Geçersiz aralık. Lütfen geçerli bir saniye sayısı girin.\nKullanım: /teslacron <saniye>\nÖrnek: /teslacron 300 (5 dakika için)",
+      "monitoring_status": "📊 Tesla İzleme Yapılandırması\n\nMevcut aralık: {} saniye\nToplam kimlik doğrulanmış kullanıcı: {}\nİzleme etkinleştirilmiş kullanıcı: {}\n\nAralığı değiştirmek için /teslacron <saniye> kullanın."
+    },
+    "errors": {
+      "edit_no_field": "❌ Lütfen düzenlenecek alanı belirtin.\n\nÖrnekler:\n/edit km (10km azaltır)\n/edit km 150.5\n/edit location (Paris'e ayarlar)\n/edit location 12345\n/edit date (1 hafta öncesine ayarlar)\n/edit date 'Jan 15-22, 2024'",
+      "no_order_data": "Sipariş verisi bulunamadı. Siparişlerinizi yüklemek için önce /orderstatus çalıştırın.",
+      "invalid_km_value": "❌ Geçersiz km değeri. Lütfen bir sayı girin (örn. /edit km 150.5)",
+      "invalid_location_id": "❌ Geçersiz lokasyon ID'si. Lütfen bir sayı girin (örn. /edit location 12345)",
+      "unknown_field": "❌ Bilinmeyen alan. Desteklenen alanlar: km, location, date\n\nÖrnekler:\n/edit km 150.5\n/edit location 12345\n/edit date 'Jan 15-22, 2024'",
+      "edit_success": "✅ {}\n\n🔄 Simüle edilen değişiklikleri görmek için /orderstatus çalıştırın!",
+      "no_orders_to_edit": "Düzenlenecek sipariş bulunamadı. Lütfen önce /orderstatus çalıştırın."
+    },
+    "help": {
+      "user_commands": "🚗 Tesla Sipariş Durumu Bot - Kullanılabilir Komutlar:\n\n🔑 Kimlik Doğrulama:\n• /login - Tesla hesabınızı bağlayın\n• /logout - Tesla hesabınızla bağlantıyı kesin\n\n📊 Sipariş Yönetimi:\n• /orderstatus - Mevcut sipariş durumunuzu kontrol edin\n• /enablemonitoring - Otomatik durum takibini etkinleştirin\n• /disablemonitoring - Otomatik takibi devre dışı bırakın\n• /monitoringstatus - Takip durumunu kontrol edin\n\n⚙️ Ayarlar:\n• /language - Dil tercihini değiştirin\n• /help - Bu yardım mesajını gösterin\n\n📝 Test (geliştirme için):\n• /edit <alan> [değer] - Sipariş değişikliklerini simüle edin\n\nTesla hesabınızı bağlamak için /login kullanarak başlayın!"
+    },
+    "language": {
+      "current": "🌐 Mevcut dil: Türkçe\n\nMevcut diller:\n🇺🇸 English - /language en\n🇹🇷 Türkçe - /language tr\n\nDili değiştirmek için yukarıdaki komutlardan birine tıklayın.",
+      "changed": "✅ Dil Türkçe olarak değiştirildi!",
+      "invalid": "❌ Geçersiz dil kodu. Mevcut seçenekler:\n• /language en (İngilizce)\n• /language tr (Türkçe)",
+      "same": "Zaten Türkçe kullanıyorsunuz."
+    }
+  },
+  "common": {
+    "error": "Bir hata oluştu: {}",
+    "success": "Başarılı!",
+    "please_wait": "Lütfen bekleyin...",
+    "processing": "İşleniyor...",
+    "cancelled": "İptal edildi.",
+    "invalid_command": "Geçersiz komut. Mevcut komutlar için /help yazın."
+  }
+}
