@@ -1,6 +1,6 @@
 {
   "tesla": {
-    "welcome": "Welcome to Tesla Order Status Bot! 🚗\n\nFeatures:\n• Track your Tesla order status in real-time\n• Get notified of status changes automatically\n• View detailed order information\n\nCommands:\n/login - Authenticate with your Tesla account\n/orderstatus - Check your current order status\n/monitor - Enable automatic status monitoring\n/unmonitor - Disable automatic monitoring\n/status - View current order details\n/logout - Remove your authentication\n/help - Show this help message\n\nStart by using /login to connect your Tesla account!",
+    "welcome": "Welcome to Tesla Order Status Bot! 🚗\n\nFeatures:\n• Track your Tesla order status in real-time\n• Get notified of status changes automatically\n• View detailed order information\n\nCommands:\n/login - Authenticate with your Tesla account\n/orderstatus - Check your current order status\n/enablemonitoring - Enable automatic status monitoring\n/disablemonitoring - Disable automatic monitoring\n/monitoringstatus - Check monitoring status\n/logout - Remove your authentication\n/help - Show this help message\n\nStart by using /login to connect your Tesla account!",
     "auth": {
       "already_authenticated": "You are already logged in! Use /orderstatus to check your orders.",
       "login_required": "You need to login first! Use /login to authenticate.",
