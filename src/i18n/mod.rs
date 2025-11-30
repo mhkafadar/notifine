@@ -101,7 +101,6 @@ impl I18n {
             "lütfen",
             "özür",
             "dilerim",
-            "tesla",
             "araba",
             "sipariş",
             "durum",
@@ -217,33 +216,28 @@ mod tests {
 
     #[test]
     fn test_get_message() {
-        let msg = t("en", "tesla.welcome");
-        assert!(msg.contains("Welcome to Tesla Order Status Bot"));
+        let msg = t("en", "common.success");
+        assert!(msg.contains("Success"));
 
-        let msg_tr = t("tr", "tesla.welcome");
-        assert!(msg_tr.contains("Tesla Sipariş Durumu Bot'una Hoş Geldiniz"));
+        let msg_tr = t("tr", "common.success");
+        assert!(msg_tr.contains("Başarılı"));
     }
 
     #[test]
     fn test_get_message_with_args() {
-        let msg = t_with_args(
-            "en",
-            "tesla.auth.login_url_message",
-            &["https://example.com"],
-        );
-        assert!(msg.contains("https://example.com"));
+        let msg = t_with_args("en", "common.error", &["test error"]);
+        assert!(msg.contains("test error"));
     }
 
     #[test]
     fn test_missing_message() {
-        let msg = t("en", "tesla.nonexistent.key");
+        let msg = t("en", "nonexistent.key");
         assert!(msg.contains("Message not found"));
     }
 
     #[test]
     fn test_language_fallback() {
-        // Test that unknown language falls back to English
-        let msg = t("de", "tesla.welcome");
-        assert!(msg.contains("Welcome to Tesla Order Status Bot"));
+        let msg = t("de", "common.success");
+        assert!(msg.contains("Success"));
     }
 }

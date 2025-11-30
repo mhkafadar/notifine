@@ -2,6 +2,8 @@ version: '3'
 
 services:
   notifine-bot:
+    profiles:
+      - app
     container_name: '${COMPOSE_PROJECT_NAME}-notifine-bot'
     build: .
     restart: unless-stopped
@@ -21,7 +23,7 @@ services:
 
   notifine-db:
     container_name: '${COMPOSE_PROJECT_NAME}-notifine-db'
-    image: postgres:11
+    image: postgres:17
     restart: unless-stopped
     networks:
       - telegram_bots
@@ -29,11 +31,11 @@ services:
       - ./data/db:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
-      - POSTGRES_USER=notifine
+      - POSTGRES_USER=admin
       - PUID=1000
       - GUID=1000
-    expose:
-      - 5432
+    ports:
+      - "5445:5432"
 
 networks:
   telegram_bots:

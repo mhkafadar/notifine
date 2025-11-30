@@ -13,7 +13,6 @@ Notifine helps with events in your work tools like Gitlab, Github, and Trello. J
 - 🤖 [Gitlab bot](https://t.me/gitlab_notifine_bot)
 - 🤖 [Github bot](https://t.me/github_notifine_bot)
 - 🧭 Trello bot (Soon)
-- 🚗 Tesla bot - Track your Tesla order status
 - 🔔 [Beep bot](https://t.me/beep_notifine_bot) - Simple webhook notifications
 - 📊 [Uptime bot](https://t.me/uptime_notifine_bot) - Monitor website availability
 
@@ -29,23 +28,14 @@ Notifine helps with events in your work tools like Gitlab, Github, and Trello. J
 
 ### Github and GitLab
 
-✅ Commit push  
- ✅ Tag push  
- ✅ Pipeline  
- ✅ Pull request (via Job events)  
- ✅ Job events  
- ✅ Issue  
- ✅ Comment  
+✅ Commit push
+ ✅ Tag push
+ ✅ Pipeline
+ ✅ Pull request (via Job events)
+ ✅ Job events
+ ✅ Issue
+ ✅ Comment
  ✅ Deployment notifications
-
-### Tesla Bot
-
-✅ OAuth authentication with Tesla account  
-✅ Real-time order status tracking  
-✅ Automatic status change notifications (checks every 5 minutes)  
-✅ Detailed order information (VIN, delivery dates, etc.)  
-✅ Secure token storage with AES-256 encryption  
-✅ Smart change detection - only notifies when something changes
 
 ## ✨ Features
 
@@ -141,36 +131,12 @@ GITHUB_TELOXIDE_TOKEN=your_github_bot_token
 BEEP_TELOXIDE_TOKEN=your_beep_bot_token
 TRELLO_TELOXIDE_TOKEN=your_trello_bot_token
 UPTIME_TELOXIDE_TOKEN=your_uptime_bot_token
-TESLA_TELOXIDE_TOKEN=your_tesla_bot_token
-
-# Security - Token Encryption
-TESLA_ENCRYPTION_KEY=  # 64 hex characters for AES-256 encryption
 
 # Admin Configuration
 ADMIN_LOGS=NOT_ACTIVE  # ACTIVE or NOT_ACTIVE
 ADMIN_LOG_LEVEL=0
 TELEGRAM_ADMIN_CHAT_ID=your_admin_chat_id
 ```
-
-### Security
-
-#### Token Encryption
-
-Notifine uses AES-256-GCM encryption to protect sensitive OAuth tokens stored in the database. This ensures that even if the database is compromised, tokens remain secure.
-
-**Generating an Encryption Key:**
-
-```bash
-# Generate a secure 256-bit key (64 hex characters)
-openssl rand -hex 32
-```
-
-**Important Security Notes:**
-
-- Store the encryption key securely (use environment variables, never commit to git)
-- Use different encryption keys for each environment (dev, staging, production)
-- Rotate encryption keys periodically
-- Back up your encryption keys securely - lost keys mean inaccessible tokens
 
 ### Database Setup
 

@@ -27,13 +27,13 @@ let welcome_msg = MESSAGES.get("welcome", &language);
 use notifine::localization::{t, t_with_args, Language};
 
 // Simple message
-let welcome = t("tesla.welcome", &Language::English);
+let success = t("common.success", &Language::English);
 
 // Message with arguments
 let error_msg = t_with_args(
-    "tesla.auth.token_expired", 
-    &Language::Turkish, 
-    &["Invalid token format"]
+    "common.error",
+    &Language::Turkish,
+    &["Connection failed"]
 );
 ```
 
@@ -42,24 +42,13 @@ let error_msg = t_with_args(
 Messages are organized hierarchically using dot notation:
 
 ```
-tesla.
-├── welcome
-├── auth.
-│   ├── already_authenticated
-│   ├── login_required
-│   ├── login_url_message
-│   ├── success
-│   └── ...
-├── orders.
-│   ├── fetching
-│   ├── no_orders_found
-│   └── ...
-├── monitoring.
-│   ├── enabled
-│   └── disabled
-└── admin.
-    ├── only
-    └── ...
+common.
+├── error
+├── success
+├── please_wait
+├── processing
+├── cancelled
+└── invalid_command
 ```
 
 ## Adding New Languages
@@ -82,10 +71,8 @@ Use `{}` placeholders in your messages for dynamic content:
 
 ```json
 {
-  "tesla": {
-    "auth": {
-      "token_expired": "Token expired: {}. Please login again."
-    }
+  "common": {
+    "error": "An error occurred: {}"
   }
 }
 ```
@@ -93,13 +80,13 @@ Use `{}` placeholders in your messages for dynamic content:
 Then use with arguments:
 
 ```rust
-let message = t_with_args("tesla.auth.token_expired", &language, &["Invalid format"]);
+let message = t_with_args("common.error", &language, &["Connection timeout"]);
 ```
 
 ## Best Practices
 
-1. **Use descriptive keys**: `tesla.auth.login_required` instead of `login_req`
-2. **Group related messages**: Keep authentication messages under `tesla.auth.*`
+1. **Use descriptive keys**: `common.invalid_command` instead of `inv_cmd`
+2. **Group related messages**: Keep common messages under `common.*`
 3. **Consistent structure**: Maintain the same key structure across all language files
 4. **Fallback to English**: The system automatically falls back to English if a key is missing
 5. **Test translations**: Ensure all translations are accurate and culturally appropriate

@@ -28,30 +28,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    tesla_auth (id) {
-        id -> Int4,
-        chat_id -> Int8,
-        access_token -> Text,
-        refresh_token -> Text,
-        expires_in -> Int8,
-        token_type -> Text,
-        created_at -> Timestamp,
-        updated_at -> Timestamp,
-        monitoring_enabled -> Bool,
-    }
-}
-
-diesel::table! {
-    tesla_orders (id) {
-        id -> Int4,
-        chat_id -> Int8,
-        order_data -> Jsonb,
-        created_at -> Timestamp,
-        updated_at -> Timestamp,
-    }
-}
-
-diesel::table! {
     trello_tokens (id) {
         id -> Int4,
         #[max_length = 255]
@@ -82,11 +58,4 @@ diesel::table! {
 
 diesel::joinable!(webhooks -> chats (chat_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    chats,
-    health_urls,
-    tesla_auth,
-    tesla_orders,
-    trello_tokens,
-    webhooks,
-);
+diesel::allow_tables_to_appear_in_same_query!(chats, health_urls, trello_tokens, webhooks,);
