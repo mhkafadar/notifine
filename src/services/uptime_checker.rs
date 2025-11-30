@@ -132,8 +132,8 @@ async fn send_failure_message(
     let telegram_id = chat.telegram_id;
 
     let message = format!(
-        "[ALARM] Health check failed for URL: {}\nStatus code: {}\nResponse time: {:?}. Uptime Bot will keep sending requests every minute but will send you a message only if it becomes healthy again.",
-        health_url.url, status_code, duration
+        "[ALARM] Health check failed for URL: {}\nStatus code: {}\nResponse time: {:.2}s. Uptime Bot will keep sending requests every minute but will send you a message only if it becomes healthy again.",
+        health_url.url, status_code, duration.as_secs_f64()
     );
 
     let chat_id = ChatId(telegram_id.parse::<i64>().expect("Invalid telegram_id"));
@@ -152,8 +152,8 @@ async fn send_recovery_message(
     let telegram_id = chat.telegram_id;
 
     let message = format!(
-        "[FIXED] Your endpoint {} is now healthy with status code {}. Response time: {:?}. Uptime Bot will keep sending requests every minute but will send you a message only if it becomes unhealthy again.",
-        health_url.url, status_code, duration
+        "[FIXED] Your endpoint {} is now healthy with status code {}. Response time: {:.2}s. Uptime Bot will keep sending requests every minute but will send you a message only if it becomes unhealthy again.",
+        health_url.url, status_code, duration.as_secs_f64()
     );
 
     let chat_id = ChatId(telegram_id.parse::<i64>().expect("Invalid telegram_id"));

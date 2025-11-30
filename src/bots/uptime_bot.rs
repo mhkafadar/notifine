@@ -125,8 +125,8 @@ async fn handle_new_health_url(
             thread_id,
             message: format!(
                 "Error! Endpoint should return success status code (2xx) on first check to be added.\n\n\
-                Failed to add new health check endpoint: {}\nStatus code: {}\nResponse time: {:?}",
-                health_url, health_result.status_code, health_result.duration
+                Failed to add new health check endpoint: {}\nStatus code: {}\nResponse time: {:.2}s",
+                health_url, health_result.status_code, health_result.duration.as_secs_f64()
             ),
         })
         .await?;
