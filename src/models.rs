@@ -9,7 +9,7 @@ pub struct Chat {
     pub id: i32,
     pub name: String,
     pub telegram_id: String,
-    pub webhook_url: String,
+    pub webhook_url: Option<String>,
     pub thread_id: Option<String>,
     pub language: String,
 }
@@ -20,7 +20,7 @@ pub struct Chat {
 pub struct NewChat<'a> {
     pub name: &'a str,
     pub telegram_id: &'a str,
-    pub webhook_url: &'a str,
+    pub webhook_url: Option<&'a str>,
     pub thread_id: Option<&'a str>,
     pub language: &'a str,
 }

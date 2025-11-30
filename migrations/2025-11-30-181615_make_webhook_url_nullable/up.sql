@@ -1,0 +1,2 @@
+ALTER TABLE chats ALTER COLUMN webhook_url DROP NOT NULL;
+ALTER TABLE chats DROP CONSTRAINT IF EXISTS chats_webhook_url_key;

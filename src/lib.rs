@@ -64,18 +64,27 @@ pub fn get_webhook_url_or_create(input: WebhookGetOrCreateInput) -> WebhookInfo 
         .expect("Error loading webhooks");
 
     if let Some(chat) = result {
-        let webhook = find_webhook_by_chat_id(chat.id);
-
         if telegram_thread_id.is_some() {
-            let chat = find_chat_by_id(chat.id).expect("Error loading chat");
-            if chat.thread_id.is_none() {
-                update_chat_thread_id(&chat, telegram_thread_id.unwrap());
+            if let Some(ref c) = find_chat_by_id(chat.id) {
+                if c.thread_id.is_none() {
+                    update_chat_thread_id(c, telegram_thread_id.unwrap());
+                }
             }
         }
 
-        WebhookInfo {
-            webhook_url: webhook.expect("Error loading webhook").webhook_url,
-            is_new: false,
+        match find_webhook_by_chat_id(chat.id) {
+            Some(webhook) => WebhookInfo {
+                webhook_url: webhook.webhook_url,
+                is_new: false,
+            },
+            None => {
+                let random_string = create_random_string();
+                let new_webhook = create_webhook(&random_string, "new_chat", chat.id);
+                WebhookInfo {
+                    webhook_url: new_webhook.webhook_url,
+                    is_new: true,
+                }
+            }
         }
     } else {
         let random_string = create_random_string();
@@ -83,9 +92,9 @@ pub fn get_webhook_url_or_create(input: WebhookGetOrCreateInput) -> WebhookInfo 
         let new_chat = create_chat(CreateChatInput {
             telegram_chat_id,
             name,
-            webhook_url: &random_string,
+            webhook_url: Some(&random_string),
             telegram_thread_id,
-            language: "en", // Default language
+            language: "en",
         });
         let new_webhook = create_webhook(&random_string, name, new_chat.id);
 
@@ -110,7 +119,7 @@ pub fn show_webhooks() -> Vec<Webhook> {
 pub struct CreateChatInput<'a> {
     pub telegram_chat_id: &'a str,
     pub name: &'a str,
-    pub webhook_url: &'a str,
+    pub webhook_url: Option<&'a str>,
     pub telegram_thread_id: Option<&'a str>,
     pub language: &'a str,
 }
@@ -344,4 +353,31 @@ pub fn get_all_chats() -> Vec<Chat> {
     let conn = &mut establish_connection();
 
     chats.load::<Chat>(conn).expect("Error loading chats")
+}
+
+pub fn get_health_urls_by_chat_id(chat_id_value: i64) -> Vec<HealthUrl> {
+    use self::schema::health_urls::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    health_urls
+        .filter(chat_id.eq(chat_id_value as i32))
+        .load::<HealthUrl>(conn)
+        .expect("Error loading health URLs")
+}
+
+pub fn delete_health_url_by_id(health_url_id: i32, chat_id_value: i32) -> bool {
+    use self::schema::health_urls::dsl::*;
+
+    let conn = &mut establish_connection();
+
+    let deleted = diesel::delete(
+        health_urls
+            .filter(id.eq(health_url_id))
+            .filter(chat_id.eq(chat_id_value)),
+    )
+    .execute(conn)
+    .expect("Error deleting health URL");
+
+    deleted > 0
 }

@@ -8,7 +8,7 @@ diesel::table! {
         #[max_length = 255]
         telegram_id -> Varchar,
         #[max_length = 255]
-        webhook_url -> Varchar,
+        webhook_url -> Nullable<Varchar>,
         #[max_length = 255]
         thread_id -> Nullable<Varchar>,
         #[max_length = 5]
@@ -24,6 +24,30 @@ diesel::table! {
         status_code -> Int4,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    tesla_auth (id) {
+        id -> Int4,
+        chat_id -> Int8,
+        access_token -> Text,
+        refresh_token -> Text,
+        expires_in -> Int8,
+        token_type -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+        monitoring_enabled -> Bool,
+    }
+}
+
+diesel::table! {
+    tesla_orders (id) {
+        id -> Int4,
+        chat_id -> Int8,
+        order_data -> Jsonb,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -58,4 +82,11 @@ diesel::table! {
 
 diesel::joinable!(webhooks -> chats (chat_id));
 
-diesel::allow_tables_to_appear_in_same_query!(chats, health_urls, trello_tokens, webhooks,);
+diesel::allow_tables_to_appear_in_same_query!(
+    chats,
+    health_urls,
+    tesla_auth,
+    tesla_orders,
+    trello_tokens,
+    webhooks,
+);
