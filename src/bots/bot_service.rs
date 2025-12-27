@@ -1,6 +1,10 @@
-// bot_service.rs
+use crate::observability::alerts::Severity;
+use crate::observability::{ALERTS, METRICS};
 use crate::utils::telegram_admin::send_message_to_admin;
-use notifine::{get_webhook_url_or_create, WebhookGetOrCreateInput};
+use notifine::db::DbPool;
+use notifine::{
+    deactivate_chat, get_all_chats, get_webhook_url_or_create, WebhookGetOrCreateInput,
+};
 use std::collections::HashSet;
 use std::env;
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
@@ -22,6 +26,7 @@ pub struct BotConfig {
 pub struct BotService {
     pub bot: Bot,
     config: BotConfig,
+    pool: DbPool,
 }
 
 pub struct StartCommand {
@@ -62,15 +67,16 @@ enum Command {
 }
 
 impl BotService {
-    pub fn new(config: BotConfig) -> Self {
+    pub fn new(config: BotConfig, pool: DbPool) -> Self {
         BotService {
             bot: Bot::new(&config.token),
             config,
+            pool,
         }
     }
 
     async fn handle_start_command(&self, msg: Message) -> ResponseResult<()> {
-        log::info!("Start command received");
+        tracing::info!("Start command received");
         let inviter_username = match msg.from() {
             Some(user) => user.username.clone(),
             None => None,
@@ -99,17 +105,43 @@ impl BotService {
         } = start_command;
         let bot_name = &self.config.bot_name;
 
-        // Convert thread_id to String if present
         let thread_id_str = thread_id.map(|tid| tid.to_string());
         let thread_id_ref = thread_id_str.as_deref();
 
-        let webhook_info = get_webhook_url_or_create(WebhookGetOrCreateInput {
-            telegram_chat_id: chat_id.to_string().as_str(),
-            telegram_thread_id: thread_id_ref,
-        });
+        let webhook_info = match get_webhook_url_or_create(
+            &self.pool,
+            WebhookGetOrCreateInput {
+                telegram_chat_id: chat_id.to_string().as_str(),
+                telegram_thread_id: thread_id_ref,
+            },
+        ) {
+            Ok(info) => info,
+            Err(e) => {
+                tracing::error!("Database error creating webhook: {:?}", e);
+                METRICS.increment_errors();
+                ALERTS
+                    .send_alert(
+                        &self.bot,
+                        Severity::Error,
+                        "Database",
+                        &format!("Failed to create webhook for chat {}: {}", chat_id, e),
+                    )
+                    .await;
+                self.send_telegram_message(TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: "Hi there! Our bot is currently having some problems. \
+                              Please create a Github issue here: \
+                              https://github.com/mhkafadar/notifine/issues/new"
+                        .to_string(),
+                })
+                .await?;
+                return Ok(());
+            }
+        };
 
         let message = if webhook_info.webhook_url.is_empty() {
-            log::error!("Error creating or getting webhook: {:?}", webhook_info);
+            tracing::error!("Error creating or getting webhook: {:?}", webhook_info);
             "Hi there!\
                       Our bot is curently has some problems \
                       Please create a Github issue here: \
@@ -137,6 +169,7 @@ impl BotService {
         .await?;
 
         if webhook_info.is_new {
+            METRICS.increment_new_chat();
             let inviter_username = inviter_username.unwrap_or_else(|| "unknown".to_string());
 
             send_message_to_admin(
@@ -152,24 +185,54 @@ impl BotService {
 
     async fn handle_my_chat_member_update(&self, update: ChatMemberUpdated) -> ResponseResult<()> {
         let chat_id = update.chat.id.0;
+        let bot_name = &self.config.bot_name;
 
-        log::info!(
+        tracing::info!(
             "Received chat member update from {}: {:#?} {:#?}",
             chat_id,
             update.old_chat_member,
             update.new_chat_member
         );
 
-        // bot joining a group or a new private chat
-        if update.old_chat_member.kind == ChatMemberKind::Left
-            && update.new_chat_member.kind == ChatMemberKind::Member
-        {
+        let old_kind = &update.old_chat_member.kind;
+        let new_kind = &update.new_chat_member.kind;
+
+        if *old_kind == ChatMemberKind::Left && *new_kind == ChatMemberKind::Member {
             self.handle_new_chat_and_start_command(StartCommand {
                 chat_id,
                 thread_id: None,
                 inviter_username: update.from.username,
             })
             .await?
+        } else if matches!(
+            old_kind,
+            ChatMemberKind::Member | ChatMemberKind::Administrator { .. }
+        ) && matches!(
+            new_kind,
+            ChatMemberKind::Left | ChatMemberKind::Banned { .. }
+        ) {
+            tracing::info!("Bot removed from chat {}", chat_id);
+            METRICS.increment_churn();
+
+            if let Err(e) = deactivate_chat(&self.pool, &chat_id.to_string()) {
+                tracing::error!("Failed to deactivate chat {}: {:?}", chat_id, e);
+                METRICS.increment_errors();
+                ALERTS
+                    .send_alert(
+                        &self.bot,
+                        Severity::Warning,
+                        "Database",
+                        &format!("Failed to deactivate chat {}: {}", chat_id, e),
+                    )
+                    .await;
+            }
+
+            send_message_to_admin(
+                &self.bot,
+                format!("{bot_name} bot removed from chat: {chat_id}"),
+                10,
+            )
+            .await?;
         }
 
         Ok(())
@@ -182,7 +245,7 @@ impl BotService {
             message,
         } = message;
 
-        log::info!("Sending message to {}: {}", chat_id, message);
+        tracing::info!("Sending message to {}: {}", chat_id, message);
         let bot = &self.bot;
         let chat_id = ChatId(chat_id);
 
@@ -200,7 +263,6 @@ impl BotService {
     }
 
     async fn handle_broadcast_command(&self, msg: Message) -> ResponseResult<()> {
-        // Check if the user is admin
         let admin_chat_id: i64 = env::var("TELEGRAM_ADMIN_CHAT_ID")
             .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
             .parse::<i64>()
@@ -233,14 +295,22 @@ impl BotService {
             }
         };
 
-        // Get all chats from the database and filter unique chat IDs
-        let chats = notifine::get_all_chats();
+        let chats = match get_all_chats(&self.pool) {
+            Ok(chats) => chats,
+            Err(e) => {
+                tracing::error!("Failed to get chats: {:?}", e);
+                self.bot
+                    .send_message(msg.chat.id, "Failed to retrieve chats from database.")
+                    .await?;
+                return Ok(());
+            }
+        };
+
         let mut unique_chats = HashSet::new();
         let mut success_count = 0;
         let mut total_unique_chats = 0;
 
         for chat in chats {
-            // Only process each chat ID once
             if unique_chats.insert(chat.telegram_id.clone()) {
                 total_unique_chats += 1;
                 let telegram_message = TelegramMessage {
@@ -249,10 +319,9 @@ impl BotService {
                     message: broadcast_message.clone(),
                 };
 
-                // If sending to one chat fails, continue with others
                 match self.send_telegram_message(telegram_message).await {
                     Ok(_) => success_count += 1,
-                    Err(e) => log::error!(
+                    Err(e) => tracing::error!(
                         "Failed to send broadcast message to chat {}: {}",
                         chat.telegram_id,
                         e
@@ -274,7 +343,6 @@ impl BotService {
     }
 
     async fn handle_broadcast_test_command(&self, msg: Message) -> ResponseResult<()> {
-        // Check if the user is admin
         let admin_chat_id: i64 = env::var("TELEGRAM_ADMIN_CHAT_ID")
             .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
             .parse::<i64>()
@@ -307,10 +375,14 @@ impl BotService {
             }
         };
 
-        // Get total number of chats for simulation info
-        let total_chats = notifine::get_all_chats().len();
+        let total_chats = match get_all_chats(&self.pool) {
+            Ok(chats) => chats.len(),
+            Err(e) => {
+                tracing::error!("Failed to get chats: {:?}", e);
+                0
+            }
+        };
 
-        // Send test message to admin
         self.bot
             .send_message(
                 msg.chat.id,

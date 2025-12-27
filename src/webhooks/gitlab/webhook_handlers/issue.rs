@@ -32,7 +32,13 @@ struct User {
 }
 
 pub fn handle_issue_event(body: &web::Bytes) -> String {
-    let issue_event: IssueEvent = serde_json::from_slice(body).unwrap();
+    let issue_event: IssueEvent = match serde_json::from_slice(body) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::error!("Failed to parse GitLab issue event: {}", e);
+            return String::new();
+        }
+    };
 
     let issue_details = &issue_event.object_attributes;
     let url = &issue_details.url;

@@ -3,26 +3,26 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 use teloxide::types::Message;
 
-// Global static for translations using OnceLock for thread-safe lazy initialization
+use crate::db::PgPool;
+use crate::find_chat_by_telegram_chat_id;
+
 static TRANSLATIONS: OnceLock<HashMap<String, Value>> = OnceLock::new();
 
 fn load_translations() -> HashMap<String, Value> {
     let mut translations = HashMap::new();
 
-    // Load English translations
     let en_json = include_str!("en.json");
     if let Ok(en_value) = serde_json::from_str(en_json) {
         translations.insert("en".to_string(), en_value);
     } else {
-        log::error!("Failed to parse en.json");
+        tracing::error!("Failed to parse en.json");
     }
 
-    // Load Turkish translations
     let tr_json = include_str!("tr.json");
     if let Ok(tr_value) = serde_json::from_str(tr_json) {
         translations.insert("tr".to_string(), tr_value);
     } else {
-        log::error!("Failed to parse tr.json");
+        tracing::error!("Failed to parse tr.json");
     }
 
     translations
@@ -44,9 +44,7 @@ fn get_nested_value<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     Some(current)
 }
 
-pub struct I18n {
-    // This struct is kept for compatibility but now uses the JSON-based approach
-}
+pub struct I18n {}
 
 impl Default for I18n {
     fn default() -> Self {
@@ -60,10 +58,8 @@ impl I18n {
     }
 
     pub fn detect_language(message: &Message) -> String {
-        // Check if user has language preference from Telegram
         if let Some(user) = message.from() {
             if let Some(lang_code) = &user.language_code {
-                // Support Turkish and English
                 match lang_code.as_str() {
                     "tr" | "tr-TR" => return "tr".to_string(),
                     "en" | "en-US" | "en-GB" => return "en".to_string(),
@@ -72,11 +68,10 @@ impl I18n {
             }
         }
 
-        // Fallback to text analysis if Telegram language is not available
         if let Some(text) = message.text() {
             Self::detect_language_from_text(text)
         } else {
-            "en".to_string() // Default to English
+            "en".to_string()
         }
     }
 
@@ -139,7 +134,6 @@ impl I18n {
             .filter(|&word| text_lower.contains(word))
             .count();
 
-        // If we find 2 or more Turkish words, consider it Turkish
         if turkish_count >= 2 {
             "tr".to_string()
         } else {
@@ -147,43 +141,47 @@ impl I18n {
         }
     }
 
-    pub fn get_user_language(&self, chat_id: i64) -> String {
-        // Try to get language from database
-        use crate::find_chat_by_telegram_chat_id;
-
-        if let Some(chat) = find_chat_by_telegram_chat_id(&chat_id.to_string()) {
-            return chat.language;
+    pub fn get_user_language(&self, pool: &PgPool, chat_id: i64) -> String {
+        match find_chat_by_telegram_chat_id(pool, &chat_id.to_string()) {
+            Ok(Some(chat)) => chat.language,
+            Ok(None) => "en".to_string(),
+            Err(e) => {
+                tracing::error!("Failed to get user language: {:?}", e);
+                "en".to_string()
+            }
         }
-
-        // Default to English if no chat found
-        "en".to_string()
     }
 
-    pub fn save_user_language(&self, chat_id: i64, language: &str) {
-        use crate::{establish_connection, find_chat_by_telegram_chat_id, schema::chats};
+    pub fn save_user_language(&self, pool: &PgPool, chat_id: i64, language: &str) {
+        use crate::schema::chats;
         use diesel::prelude::*;
 
-        if let Some(chat) = find_chat_by_telegram_chat_id(&chat_id.to_string()) {
-            let mut conn = establish_connection();
-
-            diesel::update(chats::table.filter(chats::id.eq(chat.id)))
-                .set(chats::language.eq(language))
-                .execute(&mut conn)
-                .ok();
+        match find_chat_by_telegram_chat_id(pool, &chat_id.to_string()) {
+            Ok(Some(chat)) => {
+                if let Ok(mut conn) = pool.get() {
+                    diesel::update(chats::table.filter(chats::id.eq(chat.id)))
+                        .set(chats::language.eq(language))
+                        .execute(&mut conn)
+                        .ok();
+                }
+            }
+            Ok(None) => {
+                tracing::warn!("No chat found for chat_id: {}", chat_id);
+            }
+            Err(e) => {
+                tracing::error!("Database error in save_user_language: {:?}", e);
+            }
         }
     }
 }
 
-// Global instance
 lazy_static::lazy_static! {
     pub static ref I18N: I18n = I18n::new();
 }
 
-// Main translation function using JSON traversal
 pub fn t(language: &str, path: &str) -> String {
     let translations = TRANSLATIONS.get_or_init(load_translations);
 
-    // Get the translation for the specified language
     if let Some(translation) = translations
         .get(language)
         .or_else(|| translations.get("en"))
@@ -196,11 +194,9 @@ pub fn t(language: &str, path: &str) -> String {
     }
 }
 
-// Translation function with arguments support
 pub fn t_with_args(language: &str, path: &str, args: &[&str]) -> String {
     let mut message = t(language, path);
 
-    // Replace {} placeholders with arguments
     for arg in args {
         if message.contains("{}") {
             message = message.replacen("{}", arg, 1);

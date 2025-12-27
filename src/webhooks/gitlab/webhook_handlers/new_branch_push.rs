@@ -3,16 +3,26 @@ use html_escape::encode_text;
 use crate::webhooks::gitlab::http_server::GitlabEvent;
 
 pub fn new_branch_push(gitlab_event: &GitlabEvent) -> String {
-    let branch_ref = &gitlab_event.r#ref.as_ref().unwrap();
-    let branch_name = branch_ref.split('/').next_back().unwrap();
+    let branch_ref = match gitlab_event.r#ref.as_ref() {
+        Some(r) => r,
+        None => {
+            tracing::error!("Missing ref field in GitLab new branch push event");
+            return String::new();
+        }
+    };
+    let branch_name = branch_ref.split('/').next_back().unwrap_or(branch_ref);
     let project = &gitlab_event.project;
 
-    // replace - with \- to avoid error in telegram markdown
     let project_name = &project.name;
-    // set project_url to project.homepage if not none set "dummy_url" otherwise
     let fallback_project_url = "empty_gitlab_project_url".to_owned();
-    let project_url = &project.homepage.as_ref().unwrap_or(&fallback_project_url);
-    let user = gitlab_event.user_name.as_ref().unwrap();
+    let project_url = project.homepage.as_ref().unwrap_or(&fallback_project_url);
+    let user = match gitlab_event.user_name.as_ref() {
+        Some(u) => u,
+        None => {
+            tracing::error!("Missing user_name field in GitLab new branch push event");
+            return String::new();
+        }
+    };
 
     let mut commit_paragraph = format!(
         "<b>{user}</b> \
@@ -21,11 +31,17 @@ pub fn new_branch_push(gitlab_event: &GitlabEvent) -> String {
         {project_name}</a>\n\n",
     );
 
-    // loop through 4 commits from end of commits vector
-    for commit in gitlab_event.commits.as_ref().unwrap().iter().rev().take(4) {
-        log::info!("Commit: {}", commit.message);
-        log::info!("Commit url: {}", commit.url);
-        log::info!("Commit author: {}", commit.author.name);
+    let commits = match gitlab_event.commits.as_ref() {
+        Some(c) => c,
+        None => {
+            return commit_paragraph;
+        }
+    };
+
+    for commit in commits.iter().rev().take(4) {
+        tracing::info!("Commit: {}", commit.message);
+        tracing::info!("Commit url: {}", commit.url);
+        tracing::info!("Commit author: {}", commit.author.name);
 
         let commit_url = &commit.url;
         let commit_message = encode_text(commit.message.trim_end());

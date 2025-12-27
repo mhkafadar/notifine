@@ -34,7 +34,13 @@ struct Author {
 }
 
 pub fn handle_push_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>) -> String {
-    let push_event: PushEvent = serde_json::from_slice(body).unwrap();
+    let push_event: PushEvent = match serde_json::from_slice(body) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::error!("Failed to parse GitLab push event: {}", e);
+            return String::new();
+        }
+    };
 
     // Extract branch name from ref field (refs/heads/branch-name)
     let branch_name = push_event
@@ -46,7 +52,7 @@ pub fn handle_push_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>
     // Apply branch filter if provided
     if let Some(filter) = branch_filter {
         if !filter.should_process(branch_name) {
-            log::info!("Filtered out GitLab push event for branch: {}", branch_name);
+            tracing::info!("Filtered out GitLab push event for branch: {}", branch_name);
             return String::new();
         }
     }
@@ -61,9 +67,9 @@ pub fn handle_push_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>
     }
 
     for commit in push_event.commits.iter().rev() {
-        log::info!("Commit: {}", commit.message);
-        log::info!("Commit url: {}", commit.url);
-        log::info!("Commit author: {}", commit.author.name);
+        tracing::info!("Commit: {}", commit.message);
+        tracing::info!("Commit url: {}", commit.url);
+        tracing::info!("Commit author: {}", commit.author.name);
 
         let commit_url = &commit.url;
         let commit_message = encode_text(commit.message.trim_end());
@@ -84,7 +90,11 @@ struct CreateFirstRow {
 }
 
 fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
-    let branch_name = push_event.ref_field.split("refs/heads/").last().unwrap();
+    let branch_name = push_event
+        .ref_field
+        .split("refs/heads/")
+        .last()
+        .unwrap_or(&push_event.ref_field);
     let project_name = &push_event.project.name;
     let project_url = &push_event.project.homepage;
     let branch_url = format!("{project_url}/tree/{branch_name}");

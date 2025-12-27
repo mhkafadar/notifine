@@ -29,9 +29,9 @@
 // pub async fn handle_trello_callback(
 //     query_params: web::Query<CallbackQueryParams>,
 // ) -> impl Responder {
-//     log::info!("Trello callback");
-//     log::info!("oauth_token: {}", query_params.oauth_token);
-//     log::info!("oauth_verifier: {}", query_params.oauth_verifier);
+//     tracing::info!("Trello callback");
+//     tracing::info!("oauth_token: {}", query_params.oauth_token);
+//     tracing::info!("oauth_verifier: {}", query_params.oauth_verifier);
 //
 //     // get trellotoken by oauth_token from db
 //     let trello_token = find_trello_token_by_token_key(&query_params.oauth_token).unwrap();

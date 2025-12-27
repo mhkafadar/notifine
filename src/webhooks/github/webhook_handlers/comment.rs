@@ -3,13 +3,6 @@ use actix_web::web;
 use html_escape::encode_text;
 use serde::Deserialize;
 
-#[derive(Debug)]
-enum CommentableType {
-    Issue,
-    PullRequest,
-    Commit,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct CommentEvent {
     action: String,
@@ -75,8 +68,8 @@ pub fn handle_comment_event(body: &web::Bytes, full_message: bool) -> String {
     let comment_event: CommentEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
-            log::error!("Failed to parse comment event: {}", e);
-            log::error!("Raw payload: {}", String::from_utf8_lossy(body));
+            tracing::error!("Failed to parse comment event: {}", e);
+            tracing::error!("Raw payload: {}", String::from_utf8_lossy(body));
             return String::new();
         }
     };
@@ -90,40 +83,24 @@ pub fn handle_comment_event(body: &web::Bytes, full_message: bool) -> String {
     let repository_url = &comment_event.repository.html_url;
     let comment = comment_event.process(full_message);
 
-    // Determine the type of comment based on which fields are present
-    let commentable_type = if comment_event.issue.is_some() {
-        CommentableType::Issue
-    } else if comment_event.pull_request.is_some() {
-        CommentableType::PullRequest
-    } else if comment_event.comment.commit_id.is_some() {
-        CommentableType::Commit
+    if let Some(issue) = &comment_event.issue {
+        format!(
+            "<b>{sender}</b> commented on issue <a href=\"{url}\">#{number}</a> in <a href=\"{repository_url}\">{repository_name}</a>:\n{comment}",
+            url = issue.html_url,
+            number = issue.number
+        )
+    } else if let Some(pr) = &comment_event.pull_request {
+        format!(
+            "<b>{sender}</b> commented on pull request <a href=\"{url}\">#{number}</a> in <a href=\"{repository_url}\">{repository_name}</a>:\n{comment}",
+            url = pr.html_url,
+            number = pr.number
+        )
+    } else if let Some(commit_id) = &comment_event.comment.commit_id {
+        format!(
+            "<b>{sender}</b> commented on commit <a href=\"{url}\">#{commit_id}</a> in <a href=\"{repository_url}\">{repository_name}</a>:\n{comment}",
+            url = comment_event.comment.html_url,
+        )
     } else {
-        return String::new(); // Unknown comment type
-    };
-
-    match commentable_type {
-        CommentableType::Issue => {
-            let issue = comment_event.issue.as_ref().unwrap();
-            format!(
-                "<b>{sender}</b> commented on issue <a href=\"{url}\">#{number}</a> in <a href=\"{repository_url}\">{repository_name}</a>:\n{comment}",
-                url = issue.html_url,
-                number = issue.number
-            )
-        }
-        CommentableType::PullRequest => {
-            let pr = comment_event.pull_request.as_ref().unwrap();
-            format!(
-                "<b>{sender}</b> commented on pull request <a href=\"{url}\">#{number}</a> in <a href=\"{repository_url}\">{repository_name}</a>:\n{comment}",
-                url = pr.html_url,
-                number = pr.number
-            )
-        }
-        CommentableType::Commit => {
-            format!(
-                "<b>{sender}</b> commented on commit <a href=\"{url}\">#{commit_id}</a> in <a href=\"{repository_url}\">{repository_name}</a>:\n{comment}",
-                url = comment_event.comment.html_url,
-                commit_id = comment_event.comment.commit_id.as_ref().unwrap()
-            )
-        }
+        String::new()
     }
 }

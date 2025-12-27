@@ -5,6 +5,291 @@
     "please_wait": "Lütfen bekleyin...",
     "processing": "İşleniyor...",
     "cancelled": "İptal edildi.",
-    "invalid_command": "Geçersiz komut. Mevcut komutlar için /help yazın."
+    "invalid_command": "Geçersiz komut. Mevcut komutlar için /help yazın.",
+    "back_button": "◀️ Geri",
+    "cancel_button": "❌ İptal",
+    "yes_button": "✅ Evet",
+    "no_button": "❌ Hayır",
+    "confirm_button": "✅ Onayla",
+    "skip_button": "Atla",
+    "continue_button": "Devam",
+    "step_progress": "Adım {}/{}"
+  },
+  "agreement": {
+    "welcome": {
+      "title": "👋 Hoş geldiniz!",
+      "description": "Bu bot, kira ve özel anlaşmalarınızdaki önemli tarihleri takip etmenize yardımcı olur. Bir kez kurun, zamanında hatırlatma alın.\n\n🏠 Konut kirası ödemeleri\n📈 Yıllık kira artış dönemleri\n📝 Özel anlaşma tarihleri"
+    },
+    "disclaimer": {
+      "title": "⚠️ Yasal Uyarı",
+      "content": "Bu uygulama genel bilgilendirme amacıyla hazırlanmış olup, hukuki tavsiye niteliği taşımaz. Sağlanan bilgiler:\n\n• Kişisel durumunuza özel değildir\n• Avukat-müvekkil ilişkisi oluşturmaz\n• Hatırlatma tarihleri tahminidir, kesin hukuki süreler için avukata danışın\n• Güncel mevzuat değişikliklerini yansıtmayabilir\n• Yargıtay içtihat değişikliklerini içermeyebilir\n• Her kira ilişkisi kendine özgü koşullar içerebilir\n• Önemli kararlar öncesinde mutlaka avukata danışın\n• Geliştiriciler, bilgilere dayanılarak yapılan işlemlerden sorumlu tutulamaz\n\nKira sözleşmenizle ilgili hukuki işlem yapmadan önce mutlaka bir avukata danışmanız önerilir.",
+      "accept_prompt": "Bu koşulları kabul ediyor musunuz?",
+      "accept_button": "✅ Kabul Ediyorum",
+      "decline_button": "❌ Reddet",
+      "accepted": "✅ Koşulları kabul ettiğiniz için teşekkürler. Artık botu kullanabilirsiniz!\n\nNe tür bir sözleşme eklemek istersiniz?\n\n[🏠 Konut Kirası] [📝 Özel Anlaşma]",
+      "declined": "Bu botu kullanmak için yasal uyarıyı kabul etmelisiniz. Tekrar denemek için /start yazın."
+    },
+    "menu": {
+      "title": "Ne tür bir sözleşme eklemek istersiniz?",
+      "rent_button": "🏠 Konut Kirası",
+      "custom_button": "📝 Özel Anlaşma",
+      "coming_soon": "Yakında eklenecek!"
+    },
+    "help": {
+      "title": "📚 Komutlar",
+      "content": "Oluşturma:\n/start - Yeni sözleşme oluştur\n\nGörüntüleme:\n/today - Bugünkü hatırlatmalar\n/upcoming - Önümüzdeki 7 gün\n/overdue - Gecikmiş hatırlatmalar\n\nYönetim:\n/list - Tüm sözleşmeleri listele\n/view - Sözleşme detayını gör\n/edit - Sözleşme düzenle\n/delete - Sözleşme sil\n/search - Sözleşme ve hatırlatma ara\n\nAyarlar:\n/settings - Tüm ayarlar\n/language - Dil değiştir (TR/EN)\n/timezone - Saat dilimi değiştir\n/help - Bu yardım mesajı\n\nİptal:\n/cancel - Aktif işlemi iptal et"
+    },
+    "language": {
+      "title": "🌐 Dil Seçin",
+      "current": "Mevcut dil: {}",
+      "changed": "Dil Türkçe olarak değiştirildi.",
+      "en_button": "🇬🇧 English",
+      "tr_button": "🇹🇷 Türkçe"
+    },
+    "timezone": {
+      "title": "🌍 Saat Dilimi Ayarları",
+      "current": "Mevcut saat dilimi: {}",
+      "changed": "Saat dilimi {} olarak değiştirildi.",
+      "default_note": "Varsayılan saat dilimi Europe/Istanbul'dur."
+    },
+    "settings": {
+      "title": "⚙️ Ayarlarınız",
+      "language_label": "🌐 Dil",
+      "timezone_label": "🌍 Saat Dilimi",
+      "change_language": "Dili Değiştir",
+      "change_timezone": "Saat Dilimini Değiştir"
+    },
+    "cancel": {
+      "success": "✅ İşlem iptal edildi.",
+      "nothing": "İptal edilecek aktif işlem yok."
+    },
+    "errors": {
+      "must_accept_disclaimer": "⚠️ Lütfen önce yasal uyarıyı kabul edin. /start yazın",
+      "database_error": "⚠️ Veritabanı hatası oluştu. Lütfen tekrar deneyin.",
+      "unknown_callback": "Bilinmeyen işlem. Lütfen tekrar deneyin.",
+      "user_not_found": "Kullanıcı bulunamadı. Lütfen önce /start yazın.",
+      "reminders_failed": "⚠️ Sözleşme oluşturuldu ancak hatırlatıcılar kaydedilemedi. Lütfen tekrar deneyin veya destek ile iletişime geçin."
+    },
+    "rent": {
+      "scope_check": {
+        "title": "Bu özellik sadece konut (mesken) kiraları için geçerlidir.",
+        "question": "Kiralanan yer konut mu?",
+        "yes_button": "✅ Evet, konut",
+        "no_button": "❌ Hayır, işyeri",
+        "commercial_notice": "İşyeri kiraları için destek yakında eklenecektir."
+      },
+      "step1_title": {
+        "prompt": "📝 Bu sözleşme için bir isim girin:\n\nAyırt edici bir isim girmenizi öneririz. Örnek: Kadıköy Dairesi, Yazlık Ev",
+        "helper": "En fazla 50 karakter"
+      },
+      "step2_role": {
+        "prompt": "Bu sözleşmede rolünüz nedir?",
+        "tenant_button": "🏠 Kiracıyım",
+        "landlord_button": "🔑 Ev sahibiyim"
+      },
+      "step3_start_date": {
+        "prompt": "📅 Sözleşme ne zaman başlıyor?\n\nBir tarih seçin veya manuel girin (GG.AA.YYYY):"
+      },
+      "step4_amount": {
+        "prompt": "💰 Aylık kira tutarı nedir?",
+        "currency_prompt": "Para birimi seçin:",
+        "confirm_prompt": "Girdiğiniz tutar: {} {}\nDoğru mu?"
+      },
+      "step5_due_day": {
+        "prompt": "📅 Kira hangi gün ödeniyor?\n\nBir gün seçin (1-31):",
+        "late_day_note": "ℹ️ Not: Şubat ve 30 günlük aylarda hatırlatma ayın son gününde gönderilecektir."
+      },
+      "step6_monthly_reminder": {
+        "prompt": "🔔 Aylık ödeme hatırlatması ister misiniz?"
+      },
+      "step7_reminder_timing": {
+        "prompt": "⏰ Ne zaman hatırlatalım?",
+        "same_day": "Aynı gün",
+        "1_day_before": "1 gün önce",
+        "3_days_before": "3 gün önce",
+        "1_week_before": "1 hafta önce",
+        "custom": "Özel"
+      },
+      "step8_yearly_increase": {
+        "prompt": "📈 Yıllık kira artış hatırlatması ister misiniz?\n\nYıllık kira artış döneminiz yaklaştığında bildirim alırsınız."
+      },
+      "step9_summary": {
+        "title": "📋 Sözleşme Özeti",
+        "agreement_name": "İsim: {}",
+        "role": "Rol: {}",
+        "role_tenant": "Kiracı",
+        "role_landlord": "Ev sahibi",
+        "start_date": "Başlangıç tarihi: {}",
+        "amount": "Aylık kira: {} {}",
+        "due_day": "Ödeme günü: Her ayın {}'i",
+        "monthly_reminder": "Aylık hatırlatma: {}",
+        "yearly_increase": "Yıllık artış hatırlatması: {}",
+        "enabled": "Açık",
+        "disabled": "Kapalı",
+        "confirm_prompt": "Bu bilgiler doğru mu?"
+      },
+      "success": {
+        "title": "✅ Sözleşme oluşturuldu!",
+        "details": "📋 {}\n👤 {} olarak\n📅 Dönem: {} - {} (12 ay)\n💰 {} {} / ay",
+        "upcoming_title": "Yaklaşan hatırlatmalar:",
+        "view_details": "📋 Detayları gör",
+        "new_agreement": "🏠 Yeni sözleşme",
+        "payment_title": "Kira ödemesi",
+        "collection_title": "Kira alacağı"
+      },
+      "past_date_warning": {
+        "title": "ℹ️ Bu tarih geçmişte.",
+        "first_reminder": "İlk aktif hatırlatma: {} ({} gün sonra)",
+        "past_period": "Geçmiş dönem: {} ödeme zaten geçti",
+        "planned": "Planlanacak: {} hatırlatma",
+        "edit_date": "✏️ Tarihi Düzenle"
+      }
+    },
+    "custom": {
+      "step1_title": {
+        "prompt": "📝 Bu sözleşme için bir isim girin:\n\nÖrnek: Sigorta Poliçesi, Freelance Sözleşme"
+      },
+      "step2_description": {
+        "prompt": "📝 Açıklama ekleyin (isteğe bağlı):\n\nBir açıklama girin veya bu adımı atlayın.",
+        "skip_button": "Atla"
+      },
+      "add_reminder": {
+        "title": "➕ Hatırlatıcı Ekle",
+        "reminder_title_prompt": "Bu hatırlatıcı ne için?",
+        "date_prompt": "📅 Son tarih ne zaman?",
+        "amount_prompt": "💰 Tutar girin (isteğe bağlı):",
+        "currency_prompt": "Para birimi seçin:",
+        "timing_prompt": "⏰ Ne zaman hatırlatalım?",
+        "added": "✅ Hatırlatıcı eklendi!",
+        "list_title": "📋 Eklenen hatırlatıcılar:",
+        "add_another": "➕ Bir tane daha ekle",
+        "finish": "✓ Tamamla"
+      },
+      "summary": {
+        "title": "📋 Sözleşme Özeti",
+        "agreement_name": "İsim: {}",
+        "description": "Açıklama: {}"
+      },
+      "success": {
+        "title": "✅ Sözleşme oluşturuldu!",
+        "reminder_count": "{} hatırlatıcı eklendi"
+      }
+    },
+    "calendar": {
+      "select_month": "Ay seçin:",
+      "select_year": "Yıl seçin:",
+      "prev_month": "◀️",
+      "next_month": "▶️",
+      "today": "Bugün"
+    },
+    "validation": {
+      "title_required": "❌ Başlık zorunludur.",
+      "title_too_long": "❌ Başlık en fazla 50 karakter olabilir.",
+      "duplicate_title": "❌ Bu isimde bir sözleşme zaten mevcut.\nAyırt etmek için semt veya yıl ekleyebilirsiniz.\nÖrnek: \"Kadıköy Dairesi 2024\" veya \"Beşiktaş Ev\"",
+      "invalid_date": "❌ Geçersiz tarih. Örnek: 15.01.2025",
+      "invalid_amount": "❌ Geçersiz tutar. Lütfen sayı girin (örn: 15000)",
+      "amount_too_high": "⚠️ Bu tutar çok yüksek görünüyor. Emin misiniz?",
+      "amount_zero": "❌ Tutar sıfır olamaz. Lütfen geçerli bir tutar girin.",
+      "invalid_day": "❌ Lütfen 1-31 arasında bir gün seçin.",
+      "description_too_long": "❌ Açıklama en fazla 200 karakter olabilir.",
+      "reminder_title_required": "❌ Hatırlatıcı başlığı zorunludur.",
+      "reminder_title_too_long": "❌ Hatırlatıcı başlığı en fazla 100 karakter olabilir.",
+      "at_least_one_reminder": "❌ Lütfen en az bir hatırlatıcı ekleyin.",
+      "max_reminders_reached": "❌ Her sözleşme için en fazla 20 hatırlatıcı eklenebilir.",
+      "past_date": "⚠️ Lütfen gelecekte bir tarih seçin."
+    },
+    "draft": {
+      "found_title": "Yarım kalan bir sözleşme var.",
+      "continue_prompt": "Devam etmek ister misiniz?",
+      "continue_button": "Devam Et",
+      "start_new_button": "Yeni Başla"
+    },
+    "list": {
+      "title": "📋 Sözleşmeleriniz",
+      "empty": "Henüz sözleşmeniz bulunmuyor.\n\nİlk sözleşmenizi oluşturmak için /start kullanın.",
+      "item_rent": "🏠 {}",
+      "item_custom": "📝 {}",
+      "view_button": "👁️ Görüntüle",
+      "delete_button": "🗑️ Sil",
+      "create_new": "➕ Yeni Oluştur"
+    },
+    "view": {
+      "title": "📄 Sözleşme Detayları",
+      "type_rent": "🏠 Konut Kirası",
+      "type_custom": "📝 Özel Sözleşme",
+      "field_title": "Başlık",
+      "field_type": "Tür",
+      "field_role": "Rol",
+      "field_role_tenant": "Kiracı",
+      "field_role_landlord": "Ev Sahibi",
+      "field_start_date": "Başlangıç Tarihi",
+      "field_amount": "Tutar",
+      "field_due_day": "Ödeme Günü",
+      "field_monthly_reminder": "Aylık Hatırlatıcı",
+      "field_yearly_increase": "Yıllık Artış Hatırlatıcısı",
+      "field_description": "Açıklama",
+      "field_created": "Oluşturulma",
+      "reminders_title": "📅 Yaklaşan Hatırlatıcılar",
+      "reminders_empty": "Yaklaşan hatırlatıcı yok",
+      "reminder_item": "• {} - {} {}",
+      "edit_button": "✏️ Düzenle",
+      "delete_button": "🗑️ Sil",
+      "back_button": "◀️ Listeye Dön",
+      "enabled": "Açık",
+      "disabled": "Kapalı",
+      "day_of_month": "Ayın {}. günü"
+    },
+    "delete": {
+      "confirm_title": "🗑️ Sözleşmeyi Sil?",
+      "confirm_message": "\"{}\" sözleşmesini silmek istediğinizden emin misiniz?\n\nBu işlem {} hatırlatıcıyı da silecek.\n\n⚠️ Bu işlem geri alınamaz.",
+      "confirm_button": "🗑️ Evet, Sil",
+      "cancel_button": "❌ İptal",
+      "success": "✅ \"{}\" sözleşmesi silindi.",
+      "not_found": "❌ Sözleşme bulunamadı.",
+      "unauthorized": "❌ Bu sözleşmeyi silme yetkiniz yok."
+    },
+    "edit": {
+      "title": "✏️ Sözleşmeyi Düzenle",
+      "select_field": "Düzenlemek istediğiniz alanı seçin:",
+      "title_button": "📝 Başlık",
+      "amount_button": "💰 Tutar",
+      "due_day_button": "📅 Ödeme Günü",
+      "monthly_reminder_button": "🔔 Aylık Hatırlatıcı",
+      "reminder_timing_button": "⏰ Hatırlatma Zamanı",
+      "yearly_increase_button": "📈 Yıllık Artış",
+      "description_button": "📄 Açıklama",
+      "back_button": "◀️ Geri",
+      "title_prompt": "Yeni başlığı girin:",
+      "amount_prompt": "Yeni tutarı girin:",
+      "due_day_prompt": "Yeni ödeme gününü seçin:",
+      "description_prompt": "Yeni açıklamayı girin (temizlemek için '-' gönderin):",
+      "success": "✅ {} başarıyla güncellendi.",
+      "no_changes": "Değişiklik yapılmadı.",
+      "toggle_on": "✅ {} açıldı.",
+      "toggle_off": "❌ {} kapatıldı.",
+      "timing_prompt": "Ne zaman hatırlatalım?",
+      "timing_before": "3 gün önce",
+      "timing_on_day": "Ödeme gününde"
+    },
+    "reminder": {
+      "notification_title": "{} Hatırlatma",
+      "agreement_name": "📋 Sözleşme: {}",
+      "reminder_title": "📌 {}",
+      "due_date": "📅 Son tarih: {}",
+      "amount": "💰 Tutar: {} {}",
+      "overdue": "{} gün gecikmiş!",
+      "due_today": "Bugün son gün!",
+      "days_left": "{} gün kaldı",
+      "mark_done": "✅ Tamam",
+      "snooze": "⏰ Ertele",
+      "marked_done": "✅ Hatırlatıcı tamamlandı!",
+      "snooze_options": "⏰ Ertele:",
+      "snooze_1h": "1 saat",
+      "snooze_3h": "3 saat",
+      "snooze_1d": "Yarın",
+      "snooze_3d": "3 gün",
+      "snoozed": "⏰ Hatırlatıcı {} tarihine ertelendi.",
+      "not_found": "❌ Hatırlatıcı bulunamadı."
+    }
   }
 }

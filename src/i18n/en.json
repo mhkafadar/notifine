@@ -5,6 +5,291 @@
     "please_wait": "Please wait...",
     "processing": "Processing...",
     "cancelled": "Cancelled.",
-    "invalid_command": "Invalid command. Type /help for available commands."
+    "invalid_command": "Invalid command. Type /help for available commands.",
+    "back_button": "◀️ Back",
+    "cancel_button": "❌ Cancel",
+    "yes_button": "✅ Yes",
+    "no_button": "❌ No",
+    "confirm_button": "✅ Confirm",
+    "skip_button": "Skip",
+    "continue_button": "Continue",
+    "step_progress": "Step {}/{}"
+  },
+  "agreement": {
+    "welcome": {
+      "title": "👋 Welcome!",
+      "description": "This bot helps you track important dates in your rental and custom agreements. Set it up once, get reminders on time.\n\n🏠 Residential rent payments\n📈 Annual rent increase periods\n📝 Custom agreement dates"
+    },
+    "disclaimer": {
+      "title": "⚠️ Legal Disclaimer",
+      "content": "This application is prepared for general information purposes and does not constitute legal advice. The information provided:\n\n• Is not specific to your personal situation\n• Does not create an attorney-client relationship\n• Reminder dates are estimates; consult a lawyer for exact legal deadlines\n• May not reflect current legislation changes\n• May not include Supreme Court precedent changes\n• Each rental relationship may have unique conditions\n• Always consult a lawyer before important decisions\n• Developers cannot be held responsible for actions taken based on this information\n\nIt is recommended to consult a lawyer before taking legal action regarding your rental agreement.",
+      "accept_prompt": "Do you accept these terms?",
+      "accept_button": "✅ I Accept",
+      "decline_button": "❌ Decline",
+      "accepted": "✅ Thank you for accepting the terms. You can now use the bot!\n\nWhat type of agreement would you like to add?\n\n[🏠 Residential Rent] [📝 Custom Agreement]",
+      "declined": "You must accept the disclaimer to use this bot. Use /start to try again."
+    },
+    "menu": {
+      "title": "What type of agreement would you like to add?",
+      "rent_button": "🏠 Residential Rent",
+      "custom_button": "📝 Custom Agreement",
+      "coming_soon": "Coming soon!"
+    },
+    "help": {
+      "title": "📚 Commands",
+      "content": "Creation:\n/start - Create new agreement\n\nViewing:\n/today - Today's reminders\n/upcoming - Next 7 days\n/overdue - Overdue reminders\n\nManagement:\n/list - List all agreements\n/view - View agreement details\n/edit - Edit agreement\n/delete - Delete agreement\n/search - Search agreements\n\nSettings:\n/settings - All settings\n/language - Change language (TR/EN)\n/timezone - Change timezone\n/help - This help message\n\nCancel:\n/cancel - Cancel active operation"
+    },
+    "language": {
+      "title": "🌐 Select Language",
+      "current": "Current language: {}",
+      "changed": "Language changed to English.",
+      "en_button": "🇬🇧 English",
+      "tr_button": "🇹🇷 Türkçe"
+    },
+    "timezone": {
+      "title": "🌍 Timezone Settings",
+      "current": "Current timezone: {}",
+      "changed": "Timezone changed to {}.",
+      "default_note": "Default timezone is Europe/Istanbul."
+    },
+    "settings": {
+      "title": "⚙️ Your Settings",
+      "language_label": "🌐 Language",
+      "timezone_label": "🌍 Timezone",
+      "change_language": "Change Language",
+      "change_timezone": "Change Timezone"
+    },
+    "cancel": {
+      "success": "✅ Operation cancelled.",
+      "nothing": "No active operation to cancel."
+    },
+    "errors": {
+      "must_accept_disclaimer": "⚠️ Please accept the disclaimer first. Use /start",
+      "database_error": "⚠️ A database error occurred. Please try again.",
+      "unknown_callback": "Unknown action. Please try again.",
+      "user_not_found": "User not found. Please use /start first.",
+      "reminders_failed": "⚠️ Agreement created but reminders could not be saved. Please try again or contact support."
+    },
+    "rent": {
+      "scope_check": {
+        "title": "This feature is only for residential rentals.",
+        "question": "Is the rented property a residence?",
+        "yes_button": "✅ Yes, residence",
+        "no_button": "❌ No, commercial",
+        "commercial_notice": "Commercial property rental support will be added soon."
+      },
+      "step1_title": {
+        "prompt": "📝 Enter a name for this agreement:\n\nWe recommend a distinctive name. Example: Kadıköy Apartment, Summer House",
+        "helper": "Max 50 characters"
+      },
+      "step2_role": {
+        "prompt": "What is your role in this agreement?",
+        "tenant_button": "🏠 I'm the tenant",
+        "landlord_button": "🔑 I'm the landlord"
+      },
+      "step3_start_date": {
+        "prompt": "📅 When does the contract start?\n\nSelect a date or enter manually (DD.MM.YYYY):"
+      },
+      "step4_amount": {
+        "prompt": "💰 What is the monthly rent amount?",
+        "currency_prompt": "Select currency:",
+        "confirm_prompt": "You entered: {} {}\nIs this correct?"
+      },
+      "step5_due_day": {
+        "prompt": "📅 On which day of the month is rent due?\n\nSelect a day (1-31):",
+        "late_day_note": "ℹ️ Note: In February and 30-day months, the reminder will be sent on the last day of the month."
+      },
+      "step6_monthly_reminder": {
+        "prompt": "🔔 Do you want monthly payment reminders?"
+      },
+      "step7_reminder_timing": {
+        "prompt": "⏰ When should we remind you?",
+        "same_day": "Same day",
+        "1_day_before": "1 day before",
+        "3_days_before": "3 days before",
+        "1_week_before": "1 week before",
+        "custom": "Custom"
+      },
+      "step8_yearly_increase": {
+        "prompt": "📈 Do you want yearly rent increase reminders?\n\nYou'll be notified when your annual rent increase period is approaching."
+      },
+      "step9_summary": {
+        "title": "📋 Agreement Summary",
+        "agreement_name": "Name: {}",
+        "role": "Role: {}",
+        "role_tenant": "Tenant",
+        "role_landlord": "Landlord",
+        "start_date": "Start date: {}",
+        "amount": "Monthly rent: {} {}",
+        "due_day": "Due day: {} of each month",
+        "monthly_reminder": "Monthly reminders: {}",
+        "yearly_increase": "Yearly increase reminder: {}",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "confirm_prompt": "Is this information correct?"
+      },
+      "success": {
+        "title": "✅ Agreement created!",
+        "details": "📋 {}\n👤 As {}\n📅 Period: {} - {} (12 months)\n💰 {} {} / month",
+        "upcoming_title": "Upcoming reminders:",
+        "view_details": "📋 View details",
+        "new_agreement": "🏠 New agreement",
+        "payment_title": "Rent payment",
+        "collection_title": "Rent collection"
+      },
+      "past_date_warning": {
+        "title": "ℹ️ This date is in the past.",
+        "first_reminder": "First active reminder: {} ({} days from now)",
+        "past_period": "Past period: {} payments already passed",
+        "planned": "Planned: {} reminders",
+        "edit_date": "✏️ Edit date"
+      }
+    },
+    "custom": {
+      "step1_title": {
+        "prompt": "📝 Enter a name for this agreement:\n\nExample: Insurance Policy, Freelance Contract"
+      },
+      "step2_description": {
+        "prompt": "📝 Add a description (optional):\n\nEnter a description or skip this step.",
+        "skip_button": "Skip"
+      },
+      "add_reminder": {
+        "title": "➕ Add Reminder",
+        "reminder_title_prompt": "What is this reminder for?",
+        "date_prompt": "📅 When is the due date?",
+        "amount_prompt": "💰 Enter amount (optional):",
+        "currency_prompt": "Select currency:",
+        "timing_prompt": "⏰ When should we remind you?",
+        "added": "✅ Reminder added!",
+        "list_title": "📋 Added reminders:",
+        "add_another": "➕ Add another",
+        "finish": "✓ Finish"
+      },
+      "summary": {
+        "title": "📋 Agreement Summary",
+        "agreement_name": "Name: {}",
+        "description": "Description: {}"
+      },
+      "success": {
+        "title": "✅ Agreement created!",
+        "reminder_count": "{} reminders added"
+      }
+    },
+    "calendar": {
+      "select_month": "Select month:",
+      "select_year": "Select year:",
+      "prev_month": "◀️",
+      "next_month": "▶️",
+      "today": "Today"
+    },
+    "validation": {
+      "title_required": "❌ Title is required.",
+      "title_too_long": "❌ Title must be at most 50 characters.",
+      "duplicate_title": "❌ An agreement with this name already exists.\nTry adding a district or year to distinguish.\nExample: \"Kadıköy Apartment 2024\" or \"Beşiktaş House\"",
+      "invalid_date": "❌ Invalid date. Example: 15.01.2025",
+      "invalid_amount": "❌ Invalid amount. Please enter a number (e.g., 15000)",
+      "amount_too_high": "⚠️ This amount seems very high. Are you sure?",
+      "amount_zero": "❌ Amount cannot be zero. Please enter a valid amount.",
+      "invalid_day": "❌ Please select a day between 1-31.",
+      "description_too_long": "❌ Description must be at most 200 characters.",
+      "reminder_title_required": "❌ Reminder title is required.",
+      "reminder_title_too_long": "❌ Reminder title must be at most 100 characters.",
+      "at_least_one_reminder": "❌ Please add at least one reminder.",
+      "max_reminders_reached": "❌ Maximum 20 reminders allowed per agreement.",
+      "past_date": "⚠️ Please select a future date."
+    },
+    "draft": {
+      "found_title": "You have an unfinished agreement.",
+      "continue_prompt": "Would you like to continue?",
+      "continue_button": "Continue",
+      "start_new_button": "Start new"
+    },
+    "list": {
+      "title": "📋 Your Agreements",
+      "empty": "You don't have any agreements yet.\n\nUse /start to create your first agreement.",
+      "item_rent": "🏠 {}",
+      "item_custom": "📝 {}",
+      "view_button": "👁️ View",
+      "delete_button": "🗑️ Delete",
+      "create_new": "➕ Create New"
+    },
+    "view": {
+      "title": "📄 Agreement Details",
+      "type_rent": "🏠 Residential Rent",
+      "type_custom": "📝 Custom Agreement",
+      "field_title": "Title",
+      "field_type": "Type",
+      "field_role": "Role",
+      "field_role_tenant": "Tenant",
+      "field_role_landlord": "Landlord",
+      "field_start_date": "Start Date",
+      "field_amount": "Amount",
+      "field_due_day": "Due Day",
+      "field_monthly_reminder": "Monthly Reminder",
+      "field_yearly_increase": "Yearly Increase Reminder",
+      "field_description": "Description",
+      "field_created": "Created",
+      "reminders_title": "📅 Upcoming Reminders",
+      "reminders_empty": "No upcoming reminders",
+      "reminder_item": "• {} - {} {}",
+      "edit_button": "✏️ Edit",
+      "delete_button": "🗑️ Delete",
+      "back_button": "◀️ Back to List",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "day_of_month": "Day {} of month"
+    },
+    "delete": {
+      "confirm_title": "🗑️ Delete Agreement?",
+      "confirm_message": "Are you sure you want to delete \"{}\"?\n\nThis will also delete {} reminder(s).\n\n⚠️ This action cannot be undone.",
+      "confirm_button": "🗑️ Yes, Delete",
+      "cancel_button": "❌ Cancel",
+      "success": "✅ Agreement \"{}\" has been deleted.",
+      "not_found": "❌ Agreement not found.",
+      "unauthorized": "❌ You don't have permission to delete this agreement."
+    },
+    "edit": {
+      "title": "✏️ Edit Agreement",
+      "select_field": "Select a field to edit:",
+      "title_button": "📝 Title",
+      "amount_button": "💰 Amount",
+      "due_day_button": "📅 Due Day",
+      "monthly_reminder_button": "🔔 Monthly Reminder",
+      "reminder_timing_button": "⏰ Reminder Timing",
+      "yearly_increase_button": "📈 Yearly Increase",
+      "description_button": "📄 Description",
+      "back_button": "◀️ Back",
+      "title_prompt": "Enter new title:",
+      "amount_prompt": "Enter new amount:",
+      "due_day_prompt": "Select new due day:",
+      "description_prompt": "Enter new description (or send '-' to clear):",
+      "success": "✅ {} updated successfully.",
+      "no_changes": "No changes made.",
+      "toggle_on": "✅ {} enabled.",
+      "toggle_off": "❌ {} disabled.",
+      "timing_prompt": "When should we remind you?",
+      "timing_before": "3 days before",
+      "timing_on_day": "On the due date"
+    },
+    "reminder": {
+      "notification_title": "{} Reminder",
+      "agreement_name": "📋 Agreement: {}",
+      "reminder_title": "📌 {}",
+      "due_date": "📅 Due: {}",
+      "amount": "💰 Amount: {} {}",
+      "overdue": "{} day(s) overdue!",
+      "due_today": "Due today!",
+      "days_left": "{} day(s) left",
+      "mark_done": "✅ Done",
+      "snooze": "⏰ Snooze",
+      "marked_done": "✅ Reminder marked as done!",
+      "snooze_options": "⏰ Snooze for:",
+      "snooze_1h": "1 hour",
+      "snooze_3h": "3 hours",
+      "snooze_1d": "Tomorrow",
+      "snooze_3d": "3 days",
+      "snoozed": "⏰ Reminder snoozed until {}.",
+      "not_found": "❌ Reminder not found."
+    }
   }
 }

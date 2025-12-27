@@ -43,8 +43,8 @@ pub fn handle_push_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>
     let push_event: PushEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
-            log::error!("Failed to parse push event: {}", e);
-            log::error!("Raw payload: {}", String::from_utf8_lossy(body));
+            tracing::error!("Failed to parse push event: {}", e);
+            tracing::error!("Raw payload: {}", String::from_utf8_lossy(body));
             return String::new();
         }
     };
@@ -59,7 +59,7 @@ pub fn handle_push_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>
     // Apply branch filter if provided
     if let Some(filter) = branch_filter {
         if !filter.should_process(branch_name) {
-            log::info!("Filtered out push event for branch: {}", branch_name);
+            tracing::info!("Filtered out push event for branch: {}", branch_name);
             return String::new();
         }
     }
@@ -76,9 +76,9 @@ pub fn handle_push_event(body: &web::Bytes, branch_filter: Option<&BranchFilter>
     let mut commit_paragraph = first_row;
 
     for commit in push_event.commits.iter().rev() {
-        log::info!("Commit: {}", commit.message);
-        log::info!("Commit url: {}", commit.url);
-        log::info!("Commit author: {}", commit.author.name);
+        tracing::info!("Commit: {}", commit.message);
+        tracing::info!("Commit url: {}", commit.url);
+        tracing::info!("Commit author: {}", commit.author.name);
 
         let commit_url = &commit.url;
         let commit_message = encode_text(commit.message.trim_end());
@@ -99,7 +99,11 @@ struct CreateFirstRow {
 }
 
 fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
-    let branch_name = push_event.ref_field.split("refs/heads/").last().unwrap();
+    let branch_name = push_event
+        .ref_field
+        .split("refs/heads/")
+        .last()
+        .unwrap_or(&push_event.ref_field);
     let project_name = &push_event.repository.name;
     let project_url = &push_event.repository.html_url;
     let branch_url = format!("{project_url}/tree/{branch_name}");

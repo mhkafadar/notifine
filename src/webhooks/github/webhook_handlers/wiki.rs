@@ -32,8 +32,8 @@ pub fn handle_wiki_event(body: &web::Bytes) -> String {
     let wiki_event: GollumEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
-            log::error!("Failed to parse wiki event: {}", e);
-            log::error!("Raw payload: {}", String::from_utf8_lossy(body));
+            tracing::error!("Failed to parse wiki event: {}", e);
+            tracing::error!("Raw payload: {}", String::from_utf8_lossy(body));
             return String::new();
         }
     };

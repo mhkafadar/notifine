@@ -1,5 +1,4 @@
 use actix_web::web;
-use log::error;
 use serde::Deserialize;
 use ureq::serde_json;
 
@@ -29,8 +28,8 @@ pub fn handle_job_event(body: &web::Bytes) -> String {
     let job_event = match serde_json::from_slice::<JobEvent>(body) {
         Ok(event) => event,
         Err(e) => {
-            error!("Failed to deserialize JobEvent: {}", e);
-            error!("Request Body: {}", String::from_utf8_lossy(body));
+            tracing::error!("Failed to deserialize JobEvent: {}", e);
+            tracing::error!("Request Body: {}", String::from_utf8_lossy(body));
             return String::from("Error processing the job event");
         }
     };

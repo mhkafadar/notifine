@@ -53,7 +53,13 @@ impl ProcessNote for NoteEvent {
 }
 
 pub fn handle_note_event(body: &web::Bytes, full_message: bool) -> String {
-    let note_event: NoteEvent = serde_json::from_slice(body).unwrap();
+    let note_event: NoteEvent = match serde_json::from_slice(body) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::error!("Failed to parse GitLab note event: {}", e);
+            return String::new();
+        }
+    };
 
     let user_name = &note_event.user.name;
     let note_details = &note_event.object_attributes;

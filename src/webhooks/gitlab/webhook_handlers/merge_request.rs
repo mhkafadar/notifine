@@ -29,7 +29,13 @@ pub fn handle_merge_request_event(
     body: &web::Bytes,
     branch_filter: Option<&BranchFilter>,
 ) -> String {
-    let merge_request_event: MergeRequestEvent = serde_json::from_slice(body).unwrap();
+    let merge_request_event: MergeRequestEvent = match serde_json::from_slice(body) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::error!("Failed to parse GitLab merge request event: {}", e);
+            return String::new();
+        }
+    };
     let merge_request_details = &merge_request_event.object_attributes;
     let url = &merge_request_details.url;
     let title = &merge_request_details.title;
@@ -40,7 +46,7 @@ pub fn handle_merge_request_event(
     // Apply branch filter if provided (filter based on target branch)
     if let Some(filter) = branch_filter {
         if !filter.should_process(target_branch) {
-            log::info!(
+            tracing::info!(
                 "Filtered out GitLab merge request event for target branch: {}",
                 target_branch
             );

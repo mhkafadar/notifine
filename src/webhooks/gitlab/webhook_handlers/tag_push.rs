@@ -17,7 +17,13 @@ struct Project {
 }
 
 pub fn handle_tag_push_event(body: &web::Bytes) -> String {
-    let tag_push_event: TagPushEvent = serde_json::from_slice(body).unwrap();
+    let tag_push_event: TagPushEvent = match serde_json::from_slice(body) {
+        Ok(e) => e,
+        Err(e) => {
+            tracing::error!("Failed to parse GitLab tag push event: {}", e);
+            return String::new();
+        }
+    };
 
     let tag_name = tag_push_event.ref_field.trim_start_matches("refs/tags/");
     let project_name = &tag_push_event.project.name;

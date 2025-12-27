@@ -1,6 +1,5 @@
-use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
 use crate::utils::branch_filter::BranchFilter;
-use crate::utils::telegram_admin::send_message_to_admin;
+use crate::webhooks::common::{process_webhook, WebhookContext};
 use crate::webhooks::gitlab::webhook_handlers::job::handle_job_event;
 use crate::webhooks::gitlab::webhook_handlers::merge_request::handle_merge_request_event;
 use crate::webhooks::gitlab::webhook_handlers::{
@@ -8,7 +7,7 @@ use crate::webhooks::gitlab::webhook_handlers::{
     tag_push::handle_tag_push_event, unknown_event::handle_unknown_event,
 };
 use actix_web::{post, web, HttpRequest, HttpResponse, Responder};
-use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
+use notifine::db::DbPool;
 use serde::Deserialize;
 use std::env;
 
@@ -105,105 +104,48 @@ pub struct Author {
 
 #[post("/gitlab/{webhook_url}")]
 pub async fn handle_gitlab_webhook(
+    pool: web::Data<DbPool>,
     webhook_url: web::Path<String>,
     query: web::Query<QueryParams>,
     req: HttpRequest,
     body: web::Bytes,
 ) -> impl Responder {
     if let Some(event_name) = req.headers().get("x-gitlab-event") {
-        // Check for full_message flag (backward compatibility with existing usage)
         let full_message = query.full_message.as_deref() == Some("true");
 
-        // Create branch filter from query parameters
         let branch_filter =
             match BranchFilter::new(query.branch.as_deref(), query.exclude_branch.as_deref()) {
                 Ok(filter) => Some(filter),
                 Err(e) => {
-                    log::error!("Invalid branch filter pattern: {}", e);
-                    return HttpResponse::BadRequest();
+                    tracing::error!("Invalid branch filter pattern: {}", e);
+                    return HttpResponse::BadRequest().finish();
                 }
             };
 
-        log::info!("Event: {:?}", event_name);
-        let message = match event_name.to_str() {
-            Ok("Push Hook") => handle_push_event(&body, branch_filter.as_ref()),
-            Ok("Tag Push Hook") => handle_tag_push_event(&body),
-            Ok("Issue Hook") => handle_issue_event(&body),
-            Ok("Note Hook") => handle_note_event(&body, full_message),
-            // Ok("Pipeline Hook") => handle_pipeline_event(&body),
-            Ok("Merge Request Hook") => handle_merge_request_event(&body, branch_filter.as_ref()),
-            Ok("Job Hook") => handle_job_event(&body),
-            _ => handle_unknown_event(event_name.to_str().unwrap().to_string()),
+        let event_str = event_name.to_str().unwrap_or("unknown");
+        tracing::info!("Event: {}", event_str);
+
+        let message = match event_str {
+            "Push Hook" => handle_push_event(&body, branch_filter.as_ref()),
+            "Tag Push Hook" => handle_tag_push_event(&body),
+            "Issue Hook" => handle_issue_event(&body),
+            "Note Hook" => handle_note_event(&body, full_message),
+            "Merge Request Hook" => handle_merge_request_event(&body, branch_filter.as_ref()),
+            "Job Hook" => handle_job_event(&body),
+            name => handle_unknown_event(name.to_string()),
         };
 
-        // if message is empty, then we don't need to send it to telegram
-        if message.is_empty() {
-            return HttpResponse::Ok();
-        }
-
-        log::info!("webhook_url: {}", &webhook_url);
-        let webhook = find_webhook_by_webhook_url(&webhook_url);
-
-        if webhook.is_none() {
-            log::error!("Webhook not found");
-            return HttpResponse::NotFound();
-        }
-        let webhook = webhook.unwrap();
-
-        // log chat_id
-        log::info!("Webhook: {}", webhook.webhook_url);
-        let chat_id = webhook.chat_id.expect("Chat id must be set");
-        log::info!("Chat id: {}", chat_id);
-
-        let chat = find_chat_by_id(webhook.chat_id.expect("Chat id must be set"));
-
-        if chat.is_none() {
-            log::error!("Chat not found");
-            return HttpResponse::NotFound();
-        }
-        let chat = chat.unwrap();
-
-        let gitlab_bot = BotService::new(BotConfig {
-            bot_name: "Gitlab".to_string(),
+        process_webhook(WebhookContext {
+            pool: pool.get_ref(),
+            webhook_url: &webhook_url,
+            message,
+            bot_name: "Gitlab",
             token: env::var("GITLAB_TELOXIDE_TOKEN").expect("GITLAB_TELOXIDE_TOKEN must be set"),
-        });
-
-        log::info!("Sending message to chat_id: {}", chat_id);
-        log::info!("Message: {}", message);
-        // log gitlab bot
-        log::info!("Gitlab bot: {:?}", gitlab_bot);
-
-        let thread_id = chat.thread_id.and_then(|tid| tid.parse::<i32>().ok());
-
-        let result = gitlab_bot
-            .send_telegram_message(TelegramMessage {
-                chat_id: chat
-                    .telegram_id
-                    .parse::<i64>()
-                    .expect("CHAT_ID must be an integer"),
-                thread_id,
-                message,
-            })
-            .await;
-
-        if let Err(e) = result {
-            log::error!(
-                "Failed to send Telegram message: {} for webhook_url: {}",
-                e,
-                &webhook_url
-            );
-        }
-
-        send_message_to_admin(
-            &gitlab_bot.bot,
-            format!("Event: {event_name:?}, Chat id: {chat_id}"),
-            50,
-        )
+            event_name: event_str,
+            source: "gitlab",
+        })
         .await
-        .unwrap();
-
-        HttpResponse::Ok()
     } else {
-        HttpResponse::BadRequest()
+        HttpResponse::BadRequest().finish()
     }
 }

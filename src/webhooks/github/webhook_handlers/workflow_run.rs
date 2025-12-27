@@ -39,8 +39,8 @@ pub fn handle_workflow_run_event(
     let workflow_event: WorkflowRunEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
-            log::error!("Failed to parse workflow run event: {}", e);
-            log::error!("Raw payload: {}", String::from_utf8_lossy(body));
+            tracing::error!("Failed to parse workflow run event: {}", e);
+            tracing::error!("Raw payload: {}", String::from_utf8_lossy(body));
             return String::new();
         }
     };
@@ -58,7 +58,7 @@ pub fn handle_workflow_run_event(
     // Apply branch filter if provided
     if let Some(filter) = branch_filter {
         if !filter.should_process(branch) {
-            log::info!("Filtered out workflow run event for branch: {}", branch);
+            tracing::info!("Filtered out workflow run event for branch: {}", branch);
             return String::new();
         }
     }

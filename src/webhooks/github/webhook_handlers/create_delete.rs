@@ -27,8 +27,8 @@ pub fn handle_create_event(body: &web::Bytes, branch_filter: Option<&BranchFilte
     let create_event: CreateDeleteEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
-            log::error!("Failed to parse create event: {}", e);
-            log::error!("Raw payload: {}", String::from_utf8_lossy(body));
+            tracing::error!("Failed to parse create event: {}", e);
+            tracing::error!("Raw payload: {}", String::from_utf8_lossy(body));
             return String::new();
         }
     };
@@ -49,7 +49,7 @@ pub fn handle_create_event(body: &web::Bytes, branch_filter: Option<&BranchFilte
     if ref_type == "branch" {
         if let Some(filter) = branch_filter {
             if !filter.should_process(ref_name) {
-                log::info!("Filtered out create branch event for branch: {}", ref_name);
+                tracing::info!("Filtered out create branch event for branch: {}", ref_name);
                 return String::new();
             }
         }
@@ -64,8 +64,8 @@ pub fn handle_delete_event(body: &web::Bytes, branch_filter: Option<&BranchFilte
     let delete_event: CreateDeleteEvent = match parse_webhook_payload(body) {
         Ok(event) => event,
         Err(e) => {
-            log::error!("Failed to parse delete event: {}", e);
-            log::error!("Raw payload: {}", String::from_utf8_lossy(body));
+            tracing::error!("Failed to parse delete event: {}", e);
+            tracing::error!("Raw payload: {}", String::from_utf8_lossy(body));
             return String::new();
         }
     };
@@ -85,7 +85,7 @@ pub fn handle_delete_event(body: &web::Bytes, branch_filter: Option<&BranchFilte
     if ref_type == "branch" {
         if let Some(filter) = branch_filter {
             if !filter.should_process(ref_name) {
-                log::info!("Filtered out delete branch event for branch: {}", ref_name);
+                tracing::info!("Filtered out delete branch event for branch: {}", ref_name);
                 return String::new();
             }
         }

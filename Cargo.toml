@@ -7,14 +7,15 @@ edition = "2021"
 
 [dependencies]
 teloxide = { version = "0.12.2", features = ["macros"] }
-log = "0.4.21"
-pretty_env_logger = "0.5.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tokio = { version = "1.37", features = ["rt-multi-thread", "macros"] }
 actix-web = "4.5.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_urlencoded = "0.7.1"
 dotenv = "0.15.0"
-diesel = { version = "2.1.5", features = ["postgres", "r2d2", "serde_json"] }
+diesel = { version = "2.1.5", features = ["postgres", "r2d2", "serde_json", "chrono", "numeric"] }
+bigdecimal = "0.4"
 glob = "0.3.1"
 rand = "0.8.5"
 reqwest = { version = "0.12.3", features = ["json", "blocking"] }
@@ -27,7 +28,8 @@ html-escape = "0.2.13"
 uuid = { version = "1.10", features = ["v4", "serde"] }
 sha2 = "0.10"
 base64 = "0.22"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
 anyhow = "1.0"
 serde_json = "1.0"
 urlencoding = "2.1"

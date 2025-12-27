@@ -29,7 +29,7 @@
 // // create a hashmap to store the user's trello tokens
 //
 // pub async fn run_trello_bot() {
-//     log::info!("Starting bot...");
+//     tracing::info!("Starting bot...");
 //
 //     let bot = create_new_bot();
 //     // Bot::new(env::var("TRELLO_TELOXIDE_TOKEN").expect("TRELLO_TELOXIDE_TOKEN must be set"));
@@ -62,7 +62,7 @@
 //         .dispatch()
 //         .await;
 //
-//     log::info!("Closing bot... Goodbye!");
+//     tracing::info!("Closing bot... Goodbye!");
 // }
 //
 // #[derive(BotCommands, Clone)]
@@ -205,8 +205,8 @@
 //     let buttons: Vec<Vec<KeyboardButton>> = boards
 //         .iter()
 //         .map(|board| {
-//             log::info!("board: {}", board.id);
-//             log::info!("board: {}", board.name);
+//             tracing::info!("board: {}", board.id);
+//             tracing::info!("board: {}", board.name);
 //             vec![KeyboardButton::new(board.name.clone())]
 //         })
 //         .collect();
@@ -226,8 +226,8 @@
 //     dialogue: MyDialogue,
 //     msg: Message,
 // ) -> ResponseResult<()> {
-//     log::info!("Board selection received");
-//     log::info!("Board name: {}", msg.text().unwrap());
+//     tracing::info!("Board selection received");
+//     tracing::info!("Board name: {}", msg.text().unwrap());
 //     let _chat_id = msg.chat.id;
 //
 //     let boards = get_trello_boards(&msg.chat.id.to_string());
@@ -237,7 +237,7 @@
 //         .find(|board| board.name == msg.text().unwrap())
 //         .unwrap();
 //
-//     log::info!("Board id: {}", board.id);
+//     tracing::info!("Board id: {}", board.id);
 //
 //     // get lists of board
 //     let lists = get_trello_lists_of_board(&msg.chat.id.to_string(), &board.id);
@@ -246,7 +246,7 @@
 //     let buttons: Vec<KeyboardButton> = lists
 //         .iter()
 //         .map(|list| {
-//             log::info!("listtt: {:?}", list);
+//             tracing::info!("listtt: {:?}", list);
 //             KeyboardButton::new(list.name.clone())
 //         })
 //         .collect();
@@ -265,8 +265,8 @@
 // }
 //
 // async fn handle_list_selection(bot: Bot, dialogue: MyDialogue, msg: Message) -> ResponseResult<()> {
-//     log::info!("List selection received");
-//     log::info!("List name: {}", msg.text().unwrap());
+//     tracing::info!("List selection received");
+//     tracing::info!("List name: {}", msg.text().unwrap());
 //     let _chat_id = msg.chat.id;
 //
 //     let keyboard = make_keyboard();
@@ -325,14 +325,14 @@
 // //             bot.edit_message_text_inline(id, text).await?;
 // //         }
 // //
-// //         log::info!("You chose: {}", version);
+// //         tracing::info!("You chose: {}", version);
 // //     }
 // //
 // //     Ok(())
 // // }
 //
 // pub async fn send_message_trello(chat_id: i64, message: String) -> ResponseResult<()> {
-//     log::info!("Sending message to {}: {}", chat_id, message);
+//     tracing::info!("Sending message to {}: {}", chat_id, message);
 //     let bot = create_new_bot();
 //
 //     let chat_id = ChatId(chat_id);
@@ -436,9 +436,9 @@
 //     let chat_id = message.chat.id.0;
 //
 //     if let Some(text) = message.text() {
-//         log::info!("Received message from {}: {}", chat_id, text);
+//         tracing::info!("Received message from {}: {}", chat_id, text);
 //     }
 //
-//     log::warn!("{:#?}", message.via_bot);
+//     tracing::warn!("{:#?}", message.via_bot);
 //     Ok(())
 // }
