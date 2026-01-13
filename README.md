@@ -8,11 +8,10 @@ Bots for Telegram. Get notifications on new events like new commits, pipelines, 
 
 </div>
 
-Notifine helps with events in your work tools like Gitlab, Github, and Trello. Just send a message to notifine or add it to your telegram group. It will provide you with a webhook link right away. Copy this link and paste it to your favorite tool (only GitLab now).
+Notifine helps with events in your work tools like GitLab and GitHub. Just send a message to notifine or add it to your telegram group. It will provide you with a webhook link right away. Copy this link and paste it to your favorite tool.
 
 - 🤖 [Gitlab bot](https://t.me/gitlab_notifine_bot)
 - 🤖 [Github bot](https://t.me/github_notifine_bot)
-- 🧭 Trello bot (Soon)
 - 🔔 [Beep bot](https://t.me/beep_notifine_bot) - Simple webhook notifications
 - 📊 [Uptime bot](https://t.me/uptime_notifine_bot) - Monitor website availability
 
@@ -129,7 +128,6 @@ WEBHOOK_BASE_URL=https://webhook.notifine.com
 GITLAB_TELOXIDE_TOKEN=your_gitlab_bot_token
 GITHUB_TELOXIDE_TOKEN=your_github_bot_token
 BEEP_TELOXIDE_TOKEN=your_beep_bot_token
-TRELLO_TELOXIDE_TOKEN=your_trello_bot_token
 UPTIME_TELOXIDE_TOKEN=your_uptime_bot_token
 
 # Admin Configuration

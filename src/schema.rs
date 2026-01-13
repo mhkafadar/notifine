@@ -58,6 +58,8 @@ diesel::table! {
         description -> Nullable<Text>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+        has_ten_year_reminder -> Bool,
+        has_five_year_reminder -> Bool,
     }
 }
 

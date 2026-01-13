@@ -90,6 +90,29 @@
       "step3_start_date": {
         "prompt": "📅 When does the contract start?\n\nSelect a date or enter manually (DD.MM.YYYY):"
       },
+      "step4_currency": {
+        "prompt": "💱 Select the currency:"
+      },
+      "step5_amount": {
+        "prompt": "💰 What is the monthly rent amount?"
+      },
+      "step6_due_day": {
+        "prompt": "📅 On which day of the month is rent due?\n\nSelect a day (1-31):",
+        "late_day_note": "ℹ️ Note: In February and 30-day months, the reminder will be sent on the last day of the month."
+      },
+      "step7_monthly_reminder": {
+        "prompt": "🔔 Do you want monthly payment reminders?\n\nYou'll always get a reminder on the payment day. This adds an extra early reminder."
+      },
+      "step8_pre_reminder": {
+        "prompt": "⏰ How many days before the payment day do you want an extra reminder?",
+        "1_day_before": "1 day before",
+        "3_days_before": "3 days before",
+        "1_week_before": "1 week before",
+        "no_extra": "No extra reminder"
+      },
+      "step9_yearly_increase": {
+        "prompt": "📈 Do you want yearly rent increase reminders?\n\nYou'll be notified when your annual rent increase period is approaching."
+      },
       "step4_amount": {
         "prompt": "💰 What is the monthly rent amount?",
         "currency_prompt": "Select currency:",
@@ -143,6 +166,20 @@
         "past_period": "Past period: {} payments already passed",
         "planned": "Planned: {} reminders",
         "edit_date": "✏️ Edit date"
+      },
+      "yearly_increase": {
+        "landlord_title": "Time to calculate rent increase based on TUFE",
+        "tenant_title": "Your rent may increase at renewal. Check legal TUFE cap."
+      },
+      "ten_year": {
+        "6_months_title": "Your 10-year extension period is ending",
+        "4_months_title": "You must send termination notice by {} if you wish to terminate",
+        "3_months_title": "URGENT: Notice deadline approaching for 10-year termination"
+      },
+      "five_year": {
+        "landlord_title": "{}-year rent review approaching. You may request court-determined fair market rent.",
+        "tenant_title": "{}-year rent review approaching. Landlord may request court redetermination.",
+        "notice_deadline_title": "Deadline for {}-year rent notice: {} days left"
       }
     },
     "custom": {
@@ -231,6 +268,10 @@
       "field_created": "Created",
       "reminders_title": "📅 Upcoming Reminders",
       "reminders_empty": "No upcoming reminders",
+      "reminders_monthly_title": "🔔 Monthly Payment Reminders",
+      "reminders_yearly_title": "📈 Yearly Increase Reminders",
+      "reminders_five_year_title": "⚖️ 5-Year Rent Review Reminders",
+      "reminders_ten_year_title": "⏰ 10-Year Notice Reminders",
       "reminder_item": "• {} - {} {}",
       "edit_button": "✏️ Edit",
       "delete_button": "🗑️ Delete",

@@ -29,10 +29,19 @@ pub async fn handle_beep_webhook(
         return HttpResponse::Ok();
     }
 
+    let beep_token = match env::var("BEEP_TELOXIDE_TOKEN") {
+        Ok(token) => token,
+        Err(_) => {
+            tracing::error!("BEEP_TELOXIDE_TOKEN not set");
+            return HttpResponse::InternalServerError();
+        }
+    };
     let beep_bot = BotService::new(
         BotConfig {
             bot_name: "Beep".to_string(),
-            token: env::var("BEEP_TELOXIDE_TOKEN").expect("BEEP_TELOXIDE_TOKEN must be set"),
+            token: beep_token,
+            webhook_base_url: String::new(),
+            admin_chat_id: None,
         },
         pool.get_ref().clone(),
     );

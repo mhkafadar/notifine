@@ -10,7 +10,6 @@ use notifine::{
     CreateChatInput,
 };
 use reqwest::Client;
-use std::env;
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
 use teloxide::dptree;
 use teloxide::macros::BotCommands;
@@ -54,6 +53,7 @@ async fn command_handler(
         Command::Start => {
             handle_new_chat_and_start_command(
                 &pool,
+                &bot,
                 StartCommand {
                     chat_id: msg.chat.id.0,
                     thread_id,
@@ -65,6 +65,7 @@ async fn command_handler(
         Command::New(health_url) => {
             handle_new_health_url(
                 &pool,
+                &bot,
                 health_url,
                 msg.chat.id.0,
                 thread_id,
@@ -91,6 +92,7 @@ async fn command_handler(
 
 async fn handle_new_health_url(
     pool: &DbPool,
+    bot: &Bot,
     health_url: String,
     telegram_chat_id: i64,
     thread_id: Option<i32>,
@@ -98,18 +100,19 @@ async fn handle_new_health_url(
 ) -> ResponseResult<()> {
     let parsed_url = Url::parse(&health_url);
     if parsed_url.is_err() || health_url.trim().is_empty() {
-        send_telegram_message(TelegramMessage {
-            chat_id: telegram_chat_id,
-            thread_id,
-            message: "Please provide a valid URL. Send a message like: '/new https://example.com"
-                .to_string(),
-        })
+        send_telegram_message(
+            bot,
+            TelegramMessage {
+                chat_id: telegram_chat_id,
+                thread_id,
+                message:
+                    "Please provide a valid URL. Send a message like: '/new https://example.com"
+                        .to_string(),
+            },
+        )
         .await?;
         return Ok(());
     }
-
-    let token = env::var("UPTIME_TELOXIDE_TOKEN").expect("UPTIME_TELOXIDE_TOKEN must be set");
-    let bot = Bot::new(token);
 
     let chat = match find_chat_by_telegram_chat_id(pool, &telegram_chat_id.to_string()) {
         Ok(c) => c,
@@ -118,17 +121,20 @@ async fn handle_new_health_url(
             METRICS.increment_errors();
             ALERTS
                 .send_alert(
-                    &bot,
+                    bot,
                     Severity::Error,
                     "Database",
                     &format!("Failed to find chat: {}", e),
                 )
                 .await;
-            send_telegram_message(TelegramMessage {
-                chat_id: telegram_chat_id,
-                thread_id,
-                message: "Database error occurred. Please try again.".to_string(),
-            })
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id: telegram_chat_id,
+                    thread_id,
+                    message: "Database error occurred. Please try again.".to_string(),
+                },
+            )
             .await?;
             return Ok(());
         }
@@ -137,11 +143,15 @@ async fn handle_new_health_url(
     let chat = match chat {
         Some(c) => c,
         None => {
-            send_telegram_message(TelegramMessage {
-                chat_id: telegram_chat_id,
-                thread_id,
-                message: "You should call start command first to initialize the bot.".to_string(),
-            })
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id: telegram_chat_id,
+                    thread_id,
+                    message: "You should call start command first to initialize the bot."
+                        .to_string(),
+                },
+            )
             .await?;
             return Ok(());
         }
@@ -155,7 +165,7 @@ async fn handle_new_health_url(
                 METRICS.increment_errors();
                 ALERTS
                     .send_alert(
-                        &bot,
+                        bot,
                         Severity::Error,
                         "Database",
                         &format!("Failed to check existing health URL: {}", e),
@@ -166,11 +176,14 @@ async fn handle_new_health_url(
         };
 
     if let Some(existing) = existing_health_url {
-        send_telegram_message(TelegramMessage {
-            chat_id: telegram_chat_id,
-            thread_id,
-            message: format!("This endpoint has already been added: {}", existing.url),
-        })
+        send_telegram_message(
+            bot,
+            TelegramMessage {
+                chat_id: telegram_chat_id,
+                thread_id,
+                message: format!("This endpoint has already been added: {}", existing.url),
+            },
+        )
         .await?;
         return Ok(());
     }
@@ -179,7 +192,7 @@ async fn handle_new_health_url(
     let health_result = check_health(&client, &health_url).await;
 
     if !health_result.success {
-        send_telegram_message(TelegramMessage {
+        send_telegram_message(bot, TelegramMessage {
             chat_id: telegram_chat_id,
             thread_id,
             message: format!(
@@ -202,33 +215,39 @@ async fn handle_new_health_url(
                 METRICS.increment_errors();
                 ALERTS
                     .send_alert(
-                        &bot,
+                        bot,
                         Severity::Error,
                         "Database",
                         &format!("Failed to create health URL: {}", e),
                     )
                     .await;
-                send_telegram_message(TelegramMessage {
-                    chat_id: telegram_chat_id,
-                    thread_id,
-                    message: "Failed to save the health check endpoint.".to_string(),
-                })
+                send_telegram_message(
+                    bot,
+                    TelegramMessage {
+                        chat_id: telegram_chat_id,
+                        thread_id,
+                        message: "Failed to save the health check endpoint.".to_string(),
+                    },
+                )
                 .await?;
                 return Ok(());
             }
         };
 
-    send_telegram_message(TelegramMessage {
-        chat_id: telegram_chat_id,
-        thread_id,
-        message,
-    })
+    send_telegram_message(
+        bot,
+        TelegramMessage {
+            chat_id: telegram_chat_id,
+            thread_id,
+            message,
+        },
+    )
     .await?;
 
     let inviter_username = inviter_username.unwrap_or_else(|| "unknown".to_string());
 
     send_message_to_admin(
-        &bot,
+        bot,
         format!(
             "New health check endpoint added: {} by @{inviter_username}",
             new_health_url.url
@@ -624,7 +643,11 @@ async fn callback_handler(bot: Bot, q: CallbackQuery, pool: DbPool) -> ResponseR
     Ok(())
 }
 
-async fn chat_member_handler(update: ChatMemberUpdated, pool: DbPool) -> ResponseResult<()> {
+async fn chat_member_handler(
+    bot: Bot,
+    update: ChatMemberUpdated,
+    pool: DbPool,
+) -> ResponseResult<()> {
     let chat_id = update.chat.id.0;
     let bot_name = "Uptime";
 
@@ -641,6 +664,7 @@ async fn chat_member_handler(update: ChatMemberUpdated, pool: DbPool) -> Respons
     if *old_kind == ChatMemberKind::Left && *new_kind == ChatMemberKind::Member {
         handle_new_chat_and_start_command(
             &pool,
+            &bot,
             StartCommand {
                 chat_id,
                 thread_id: None,
@@ -657,9 +681,6 @@ async fn chat_member_handler(update: ChatMemberUpdated, pool: DbPool) -> Respons
     ) {
         tracing::info!("Bot removed from chat {}", chat_id);
         METRICS.increment_churn();
-
-        let token = env::var("UPTIME_TELOXIDE_TOKEN").expect("UPTIME_TELOXIDE_TOKEN must be set");
-        let bot = Bot::new(token);
 
         if let Err(e) = deactivate_chat(&pool, &chat_id.to_string()) {
             tracing::error!("Failed to deactivate chat {}: {:?}", chat_id, e);
@@ -685,16 +706,13 @@ async fn chat_member_handler(update: ChatMemberUpdated, pool: DbPool) -> Respons
     Ok(())
 }
 
-pub async fn send_telegram_message(message: TelegramMessage) -> ResponseResult<()> {
+pub async fn send_telegram_message(bot: &Bot, message: TelegramMessage) -> ResponseResult<()> {
     let TelegramMessage {
         chat_id,
         thread_id,
         message,
     } = message;
 
-    let token = env::var("UPTIME_TELOXIDE_TOKEN").expect("UPTIME_TELOXIDE_TOKEN must be set");
-
-    let bot = Bot::new(token);
     let chat_id = ChatId(chat_id);
 
     let mut request = bot
@@ -712,6 +730,7 @@ pub async fn send_telegram_message(message: TelegramMessage) -> ResponseResult<(
 
 async fn handle_new_chat_and_start_command(
     pool: &DbPool,
+    bot: &Bot,
     start_command: StartCommand,
 ) -> ResponseResult<()> {
     let StartCommand {
@@ -720,9 +739,6 @@ async fn handle_new_chat_and_start_command(
         inviter_username,
     } = start_command;
     let bot_name = "Uptime";
-
-    let token = env::var("UPTIME_TELOXIDE_TOKEN").expect("UPTIME_TELOXIDE_TOKEN must be set");
-    let bot = Bot::new(token);
 
     let thread_id_str = thread_id.map(|tid| tid.to_string());
     let thread_id_ref = thread_id_str.as_deref();
@@ -734,17 +750,20 @@ async fn handle_new_chat_and_start_command(
             METRICS.increment_errors();
             ALERTS
                 .send_alert(
-                    &bot,
+                    bot,
                     Severity::Error,
                     "Database",
                     &format!("Failed to check existing chat in start command: {}", e),
                 )
                 .await;
-            send_telegram_message(TelegramMessage {
-                chat_id,
-                thread_id,
-                message: "Database error occurred. Please try again later.".to_string(),
-            })
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: "Database error occurred. Please try again later.".to_string(),
+                },
+            )
             .await?;
             return Ok(());
         }
@@ -765,17 +784,20 @@ async fn handle_new_chat_and_start_command(
             METRICS.increment_errors();
             ALERTS
                 .send_alert(
-                    &bot,
+                    bot,
                     Severity::Error,
                     "Database",
                     &format!("Failed to create chat for uptime bot: {}", e),
                 )
                 .await;
-            send_telegram_message(TelegramMessage {
-                chat_id,
-                thread_id,
-                message: "Failed to initialize the bot. Please try again later.".to_string(),
-            })
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: "Failed to initialize the bot. Please try again later.".to_string(),
+                },
+            )
             .await?;
             return Ok(());
         }
@@ -793,11 +815,14 @@ async fn handle_new_chat_and_start_command(
         bot_name = bot_name
     );
 
-    send_telegram_message(TelegramMessage {
-        chat_id,
-        thread_id,
-        message,
-    })
+    send_telegram_message(
+        bot,
+        TelegramMessage {
+            chat_id,
+            thread_id,
+            message,
+        },
+    )
     .await?;
 
     let inviter_username = inviter_username.unwrap_or_else(|| "unknown".to_string());
@@ -805,7 +830,7 @@ async fn handle_new_chat_and_start_command(
     if existing_chat.is_none() {
         METRICS.increment_new_chat();
         send_message_to_admin(
-            &bot,
+            bot,
             format!("New {bot_name} /start command: {chat_id} by @{inviter_username}"),
             10,
         )
@@ -815,10 +840,9 @@ async fn handle_new_chat_and_start_command(
     Ok(())
 }
 
-pub async fn run_bot(pool: DbPool) {
+pub async fn run_bot(pool: DbPool, token: String) {
     tracing::info!("Starting bot...");
 
-    let token = env::var("UPTIME_TELOXIDE_TOKEN").expect("UPTIME_TELOXIDE_TOKEN must be set");
     let bot = Bot::new(token);
 
     let handler = dptree::entry()
@@ -835,9 +859,9 @@ pub async fn run_bot(pool: DbPool) {
         )
         .branch(Update::filter_my_chat_member().endpoint({
             let pool = pool.clone();
-            move |update: ChatMemberUpdated| {
+            move |bot: Bot, update: ChatMemberUpdated| {
                 let pool = pool.clone();
-                async move { chat_member_handler(update, pool).await }
+                async move { chat_member_handler(bot, update, pool).await }
             }
         }))
         .branch(Update::filter_callback_query().endpoint({

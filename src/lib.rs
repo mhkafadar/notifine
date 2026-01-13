@@ -62,10 +62,10 @@ pub fn get_webhook_url_or_create(
         .optional()?;
 
     if let Some(chat) = result {
-        if telegram_thread_id.is_some() {
+        if let Some(thread_id) = telegram_thread_id {
             if let Some(ref c) = find_chat_by_id(pool, chat.id)? {
                 if c.thread_id.is_none() {
-                    update_chat_thread_id(pool, c, telegram_thread_id.unwrap())?;
+                    update_chat_thread_id(pool, c, thread_id)?;
                 }
             }
         }
@@ -207,75 +207,6 @@ pub fn find_webhook_by_chat_id(pool: &PgPool, chat_id: i32) -> Result<Option<Web
         .filter(webhooks::dsl::chat_id.eq(chat_id))
         .first::<Webhook>(conn)
         .optional()?)
-}
-
-pub fn create_trello_token(
-    pool: &PgPool,
-    new_token_key: &str,
-    new_token_secret: &str,
-    new_telegram_user_id: &str,
-) -> Result<TrelloToken, DbError> {
-    use self::schema::trello_tokens;
-
-    let conn = &mut pool.get()?;
-
-    let new_trello_token = NewTrelloToken {
-        token_key: Some(new_token_key),
-        token_secret: Some(new_token_secret),
-        access_token: None,
-        access_token_secret: None,
-        telegram_user_id: Some(new_telegram_user_id),
-    };
-
-    Ok(diesel::insert_into(trello_tokens::table)
-        .values(&new_trello_token)
-        .get_result(conn)?)
-}
-
-pub fn find_trello_token_by_token_key(
-    pool: &PgPool,
-    token_key: &str,
-) -> Result<Option<TrelloToken>, DbError> {
-    use schema::trello_tokens;
-
-    let conn = &mut pool.get()?;
-
-    Ok(trello_tokens::dsl::trello_tokens
-        .filter(trello_tokens::dsl::token_key.eq(token_key))
-        .first::<TrelloToken>(conn)
-        .optional()?)
-}
-
-pub fn find_trello_token_by_telegram_user_id(
-    pool: &PgPool,
-    telegram_user_id: &str,
-) -> Result<Option<TrelloToken>, DbError> {
-    use schema::trello_tokens;
-
-    let conn = &mut pool.get()?;
-
-    Ok(trello_tokens::dsl::trello_tokens
-        .filter(trello_tokens::dsl::telegram_user_id.eq(telegram_user_id))
-        .first::<TrelloToken>(conn)
-        .optional()?)
-}
-
-pub fn update_trello_token_access_token(
-    pool: &PgPool,
-    trello_token: &TrelloToken,
-    access_token: &str,
-    access_token_secret: &str,
-) -> Result<TrelloToken, DbError> {
-    use self::schema::trello_tokens;
-
-    let conn = &mut pool.get()?;
-
-    Ok(diesel::update(trello_token)
-        .set((
-            trello_tokens::access_token.eq(access_token),
-            trello_tokens::access_token_secret.eq(access_token_secret),
-        ))
-        .get_result(conn)?)
 }
 
 pub fn create_health_url(

@@ -1,0 +1,5 @@
+ALTER TABLE agreements DROP COLUMN has_five_year_reminder;
+
+ALTER TABLE reminders DROP CONSTRAINT reminders_reminder_type_check;
+ALTER TABLE reminders ADD CONSTRAINT reminders_reminder_type_check
+    CHECK (reminder_type IN ('pre_notify', 'due_day', 'yearly_increase', 'ten_year_notice'));

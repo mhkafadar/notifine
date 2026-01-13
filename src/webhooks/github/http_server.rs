@@ -55,12 +55,20 @@ pub async fn handle_github_webhook(
         };
         tracing::info!("Message: {}", message);
 
+        let github_token = match env::var("GITHUB_TELOXIDE_TOKEN") {
+            Ok(token) => token,
+            Err(_) => {
+                tracing::error!("GITHUB_TELOXIDE_TOKEN not set");
+                return HttpResponse::InternalServerError().finish();
+            }
+        };
+
         process_webhook(WebhookContext {
             pool: pool.get_ref(),
             webhook_url: &webhook_url,
             message,
             bot_name: "Github",
-            token: env::var("GITHUB_TELOXIDE_TOKEN").expect("GITHUB_TELOXIDE_TOKEN must be set"),
+            token: github_token,
             event_name: event_str,
             source: "github",
         })

@@ -28,6 +28,8 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
         BotConfig {
             bot_name: ctx.bot_name.to_string(),
             token: ctx.token.clone(),
+            webhook_base_url: String::new(),
+            admin_chat_id: None,
         },
         ctx.pool.clone(),
     );

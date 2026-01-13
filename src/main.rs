@@ -5,12 +5,12 @@ use crate::services::reminder_scheduler::run_reminder_scheduler;
 use crate::{http_server::run_http_server, services::uptime_checker::run_uptime_checker};
 
 use dotenv::dotenv;
-use std::env;
 use std::sync::Arc;
 use tokio::task;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 pub mod bots;
+pub mod config;
 pub mod http_server;
 pub mod observability;
 pub mod services;
@@ -18,38 +18,11 @@ pub mod utils;
 pub mod webhooks;
 
 use crate::bots::bot_service::{BotConfig, BotService};
+use crate::config::AppConfig;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use notifine::db::{create_pool, DbPool};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
-
-fn validate_env_vars() {
-    let required_vars = [
-        "DATABASE_URL",
-        "GITLAB_TELOXIDE_TOKEN",
-        "GITHUB_TELOXIDE_TOKEN",
-        "BEEP_TELOXIDE_TOKEN",
-        "UPTIME_TELOXIDE_TOKEN",
-        "AGREEMENT_BOT_TOKEN",
-        "WEBHOOK_BASE_URL",
-        "ADMIN_LOGS",
-        "TELEGRAM_ADMIN_CHAT_ID",
-    ];
-
-    let missing: Vec<&str> = required_vars
-        .iter()
-        .filter(|var| env::var(var).is_err())
-        .copied()
-        .collect();
-
-    if !missing.is_empty() {
-        eprintln!("Missing required environment variables:");
-        for var in &missing {
-            eprintln!("  - {}", var);
-        }
-        std::process::exit(1);
-    }
-}
 
 #[tokio::main]
 async fn main() {
@@ -60,11 +33,15 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    validate_env_vars();
+    let config = match AppConfig::from_env() {
+        Ok(c) => Arc::new(c),
+        Err(e) => {
+            tracing::error!("{}", e);
+            std::process::exit(1);
+        }
+    };
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-
-    let pool = match create_pool(&database_url) {
+    let pool = match create_pool(&config.database_url) {
         Ok(p) => p,
         Err(e) => {
             let error_msg = format!("{}", e);
@@ -92,11 +69,15 @@ async fn main() {
 
     task::spawn({
         let pool = pool.clone();
+        let token = config.gitlab_token.clone();
+        let webhook_base_url = config.webhook_base_url.clone();
+        let admin_chat_id = Some(config.admin_chat_id);
         BotService::new(
             BotConfig {
                 bot_name: "Gitlab".to_string(),
-                token: env::var("GITLAB_TELOXIDE_TOKEN")
-                    .expect("GITLAB_TELOXIDE_TOKEN must be set"),
+                token,
+                webhook_base_url,
+                admin_chat_id,
             },
             pool,
         )
@@ -104,11 +85,15 @@ async fn main() {
     });
     task::spawn({
         let pool = pool.clone();
+        let token = config.github_token.clone();
+        let webhook_base_url = config.webhook_base_url.clone();
+        let admin_chat_id = Some(config.admin_chat_id);
         BotService::new(
             BotConfig {
                 bot_name: "Github".to_string(),
-                token: env::var("GITHUB_TELOXIDE_TOKEN")
-                    .expect("GITHUB_TELOXIDE_TOKEN must be set"),
+                token,
+                webhook_base_url,
+                admin_chat_id,
             },
             pool,
         )
@@ -116,10 +101,15 @@ async fn main() {
     });
     task::spawn({
         let pool = pool.clone();
+        let token = config.beep_token.clone();
+        let webhook_base_url = config.webhook_base_url.clone();
+        let admin_chat_id = Some(config.admin_chat_id);
         BotService::new(
             BotConfig {
                 bot_name: "Beep".to_string(),
-                token: env::var("BEEP_TELOXIDE_TOKEN").expect("BEEP_TELOXIDE_TOKEN must be set"),
+                token,
+                webhook_base_url,
+                admin_chat_id,
             },
             pool,
         )
@@ -128,12 +118,14 @@ async fn main() {
 
     task::spawn({
         let pool = pool.clone();
-        bots::uptime_bot::run_bot(pool)
+        let token = config.uptime_token.clone();
+        bots::uptime_bot::run_bot(pool, token)
     });
 
     task::spawn({
         let pool = pool.clone();
-        bots::agreement_bot::run_bot(pool)
+        let token = config.agreement_bot_token.clone();
+        bots::agreement_bot::run_bot(pool, token)
     });
 
     task::spawn({

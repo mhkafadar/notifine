@@ -6,7 +6,6 @@ use notifine::{
     deactivate_chat, get_all_chats, get_webhook_url_or_create, WebhookGetOrCreateInput,
 };
 use std::collections::HashSet;
-use std::env;
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
 use teloxide::dptree::case;
 use teloxide::macros::BotCommands;
@@ -20,6 +19,8 @@ use teloxide::{dptree, filter_command, Bot};
 pub struct BotConfig {
     pub bot_name: String,
     pub token: String,
+    pub webhook_base_url: String,
+    pub admin_chat_id: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -155,7 +156,7 @@ impl BotService {
                  open Settings -> Webhooks and add this \
                  URL: {}/{}/{}",
                 bot_name,
-                env::var("WEBHOOK_BASE_URL").expect("WEBHOOK_BASE_URL must be set"),
+                self.config.webhook_base_url,
                 bot_name.to_lowercase(),
                 webhook_info.webhook_url
             )
@@ -263,10 +264,16 @@ impl BotService {
     }
 
     async fn handle_broadcast_command(&self, msg: Message) -> ResponseResult<()> {
-        let admin_chat_id: i64 = env::var("TELEGRAM_ADMIN_CHAT_ID")
-            .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
-            .parse::<i64>()
-            .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID");
+        let admin_chat_id = match self.config.admin_chat_id {
+            Some(id) => id,
+            None => {
+                tracing::warn!("Admin chat ID not configured, broadcast disabled");
+                self.bot
+                    .send_message(msg.chat.id, "Broadcast is not configured.")
+                    .await?;
+                return Ok(());
+            }
+        };
 
         if msg.chat.id.0 != admin_chat_id {
             self.bot
@@ -313,8 +320,15 @@ impl BotService {
         for chat in chats {
             if unique_chats.insert(chat.telegram_id.clone()) {
                 total_unique_chats += 1;
+                let chat_id: i64 = match chat.telegram_id.parse() {
+                    Ok(id) => id,
+                    Err(e) => {
+                        tracing::error!("Invalid chat telegram_id {}: {}", chat.telegram_id, e);
+                        continue;
+                    }
+                };
                 let telegram_message = TelegramMessage {
-                    chat_id: chat.telegram_id.parse().expect("Failed to parse chat ID"),
+                    chat_id,
                     thread_id: chat.thread_id.and_then(|tid| tid.parse().ok()),
                     message: broadcast_message.clone(),
                 };
@@ -343,10 +357,16 @@ impl BotService {
     }
 
     async fn handle_broadcast_test_command(&self, msg: Message) -> ResponseResult<()> {
-        let admin_chat_id: i64 = env::var("TELEGRAM_ADMIN_CHAT_ID")
-            .expect("TELEGRAM_ADMIN_CHAT_ID must be set")
-            .parse::<i64>()
-            .expect("Error parsing TELEGRAM_ADMIN_CHAT_ID");
+        let admin_chat_id = match self.config.admin_chat_id {
+            Some(id) => id,
+            None => {
+                tracing::warn!("Admin chat ID not configured, broadcast test disabled");
+                self.bot
+                    .send_message(msg.chat.id, "Broadcast is not configured.")
+                    .await?;
+                return Ok(());
+            }
+        };
 
         if msg.chat.id.0 != admin_chat_id {
             self.bot

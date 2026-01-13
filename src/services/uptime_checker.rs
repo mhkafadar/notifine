@@ -53,7 +53,13 @@ pub struct HealthResult {
 }
 
 async fn check_health_urls(pool: &DbPool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let token = env::var("UPTIME_TELOXIDE_TOKEN").expect("UPTIME_TELOXIDE_TOKEN must be set");
+    let token = match env::var("UPTIME_TELOXIDE_TOKEN") {
+        Ok(token) => token,
+        Err(_) => {
+            tracing::error!("UPTIME_TELOXIDE_TOKEN not set, skipping health check");
+            return Ok(());
+        }
+    };
     let bot = Bot::new(token);
 
     let health_urls = match get_all_health_urls(pool) {
@@ -83,7 +89,7 @@ async fn check_health_urls(pool: &DbPool) -> Result<(), Box<dyn std::error::Erro
         let pool = pool.clone();
         tokio::spawn(async move {
             if let Err(e) = check_and_notify(&pool, &client, &bot, &health_url).await {
-                eprintln!("Error checking URL: {:?} {}", e, health_url.url);
+                tracing::error!("Error checking URL {}: {:?}", health_url.url, e);
             }
             drop(permit);
         });
@@ -305,7 +311,7 @@ pub async fn run_uptime_checker(pool: DbPool) {
 
     loop {
         if let Err(e) = check_health_urls(&pool).await {
-            eprintln!("Error in uptime checker: {:?}", e);
+            tracing::error!("Error in uptime checker: {:?}", e);
         }
 
         tokio::time::sleep(Duration::from_secs(60)).await;

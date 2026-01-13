@@ -90,6 +90,29 @@
       "step3_start_date": {
         "prompt": "📅 Sözleşme ne zaman başlıyor?\n\nBir tarih seçin veya manuel girin (GG.AA.YYYY):"
       },
+      "step4_currency": {
+        "prompt": "💱 Para birimini seçin:"
+      },
+      "step5_amount": {
+        "prompt": "💰 Aylık kira tutarı nedir?"
+      },
+      "step6_due_day": {
+        "prompt": "📅 Kira hangi gün ödeniyor?\n\nBir gün seçin (1-31):",
+        "late_day_note": "ℹ️ Not: Şubat ve 30 günlük aylarda hatırlatma ayın son gününde gönderilecektir."
+      },
+      "step7_monthly_reminder": {
+        "prompt": "🔔 Aylık ödeme hatırlatması ister misiniz?\n\nÖdeme gününde her zaman hatırlatma alacaksınız. Bu seçenek ekstra erken hatırlatma ekler."
+      },
+      "step8_pre_reminder": {
+        "prompt": "⏰ Ödeme gününden kaç gün önce ekstra hatırlatma istersiniz?",
+        "1_day_before": "1 gün önce",
+        "3_days_before": "3 gün önce",
+        "1_week_before": "1 hafta önce",
+        "no_extra": "Ekstra hatırlatma istemiyorum"
+      },
+      "step9_yearly_increase": {
+        "prompt": "📈 Yıllık kira artış hatırlatması ister misiniz?\n\nYıllık kira artış döneminiz yaklaştığında bildirim alırsınız."
+      },
       "step4_amount": {
         "prompt": "💰 Aylık kira tutarı nedir?",
         "currency_prompt": "Para birimi seçin:",
@@ -143,6 +166,20 @@
         "past_period": "Geçmiş dönem: {} ödeme zaten geçti",
         "planned": "Planlanacak: {} hatırlatma",
         "edit_date": "✏️ Tarihi Düzenle"
+      },
+      "yearly_increase": {
+        "landlord_title": "TÜFE'ye göre kira artışı hesaplama zamanı",
+        "tenant_title": "Kiranız yenilemede artabilir. Yasal TÜFE sınırını kontrol edin."
+      },
+      "ten_year": {
+        "6_months_title": "10 yıllık uzatma döneminiz sona eriyor",
+        "4_months_title": "Feshetmek istiyorsanız {} tarihine kadar fesih bildirimi göndermelisiniz",
+        "3_months_title": "ACİL: 10 yıllık fesih bildirimi için son tarih yaklaşıyor"
+      },
+      "five_year": {
+        "landlord_title": "{} yıllık kira tespiti dönemi yaklaşıyor. Mahkemeden rayiç bedel tespiti talep edebilirsiniz.",
+        "tenant_title": "{} yıllık kira tespiti dönemi yaklaşıyor. Kiraya veren mahkemeden tespit isteyebilir.",
+        "notice_deadline_title": "{} yıllık kira bildirimi için son tarih: {} gün kaldı"
       }
     },
     "custom": {
@@ -231,6 +268,10 @@
       "field_created": "Oluşturulma",
       "reminders_title": "📅 Yaklaşan Hatırlatıcılar",
       "reminders_empty": "Yaklaşan hatırlatıcı yok",
+      "reminders_monthly_title": "🔔 Aylık Ödeme Hatırlatıcıları",
+      "reminders_yearly_title": "📈 Yıllık Artış Hatırlatıcıları",
+      "reminders_five_year_title": "⚖️ 5 Yıllık Kira Tespiti Hatırlatıcıları",
+      "reminders_ten_year_title": "⏰ 10 Yıl Bildirimi Hatırlatıcıları",
       "reminder_item": "• {} - {} {}",
       "edit_button": "✏️ Düzenle",
       "delete_button": "🗑️ Sil",

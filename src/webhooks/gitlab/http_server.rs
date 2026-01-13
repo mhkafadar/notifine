@@ -135,12 +135,20 @@ pub async fn handle_gitlab_webhook(
             name => handle_unknown_event(name.to_string()),
         };
 
+        let gitlab_token = match env::var("GITLAB_TELOXIDE_TOKEN") {
+            Ok(token) => token,
+            Err(_) => {
+                tracing::error!("GITLAB_TELOXIDE_TOKEN not set");
+                return HttpResponse::InternalServerError().finish();
+            }
+        };
+
         process_webhook(WebhookContext {
             pool: pool.get_ref(),
             webhook_url: &webhook_url,
             message,
             bot_name: "Gitlab",
-            token: env::var("GITLAB_TELOXIDE_TOKEN").expect("GITLAB_TELOXIDE_TOKEN must be set"),
+            token: gitlab_token,
             event_name: event_str,
             source: "gitlab",
         })

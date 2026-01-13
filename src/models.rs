@@ -1,6 +1,6 @@
 use crate::schema::{
     agreement_conversation_states, agreement_users, agreements, chats, daily_stats, health_urls,
-    reminders, trello_tokens, webhooks,
+    reminders, webhooks,
 };
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, NaiveDate, Utc};
@@ -54,29 +54,6 @@ pub struct NewWebhook<'a> {
     pub name: &'a str,
     pub webhook_url: &'a str,
     pub chat_id: Option<i32>,
-}
-
-#[derive(Queryable, Identifiable)]
-#[diesel(table_name = trello_tokens)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct TrelloToken {
-    pub id: i32,
-    pub access_token: Option<String>,
-    pub access_token_secret: Option<String>,
-    pub token_key: Option<String>,
-    pub token_secret: Option<String>,
-    pub telegram_user_id: Option<String>,
-}
-
-#[derive(Insertable)]
-#[diesel(table_name = trello_tokens)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct NewTrelloToken<'a> {
-    pub access_token: Option<&'a str>,
-    pub access_token_secret: Option<&'a str>,
-    pub token_key: Option<&'a str>,
-    pub token_secret: Option<&'a str>,
-    pub telegram_user_id: Option<&'a str>,
 }
 
 #[derive(Debug, Queryable, Identifiable)]
@@ -211,6 +188,8 @@ pub struct Agreement {
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub has_ten_year_reminder: bool,
+    pub has_five_year_reminder: bool,
 }
 
 #[derive(Insertable)]
@@ -230,6 +209,8 @@ pub struct NewAgreement<'a> {
     pub reminder_days_before: Option<i32>,
     pub has_yearly_increase_reminder: bool,
     pub description: Option<&'a str>,
+    pub has_ten_year_reminder: bool,
+    pub has_five_year_reminder: bool,
 }
 
 #[derive(AsChangeset, Default)]
@@ -243,6 +224,8 @@ pub struct UpdateAgreement {
     pub reminder_days_before: Option<Option<i32>>,
     pub has_yearly_increase_reminder: Option<bool>,
     pub description: Option<Option<String>>,
+    pub has_ten_year_reminder: Option<bool>,
+    pub has_five_year_reminder: Option<bool>,
 }
 
 #[derive(Debug, Queryable, Identifiable, Selectable, Associations)]
