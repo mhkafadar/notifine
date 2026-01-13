@@ -3,15 +3,29 @@ use super::ALERTS;
 use std::env;
 use teloxide::Bot;
 
+const BOT_TOKEN_VARS: [&str; 5] = [
+    "GITLAB_TELOXIDE_TOKEN",
+    "GITHUB_TELOXIDE_TOKEN",
+    "BEEP_TELOXIDE_TOKEN",
+    "UPTIME_TELOXIDE_TOKEN",
+    "AGREEMENT_BOT_TOKEN",
+];
+
+fn get_any_bot_token() -> Option<String> {
+    BOT_TOKEN_VARS
+        .iter()
+        .find_map(|var| env::var(var).ok().filter(|v| !v.is_empty()))
+}
+
 pub async fn send_startup_alert(severity: Severity, category: &str, message: &str) {
     if env::var("ADMIN_LOGS").unwrap_or_default() != "ACTIVE" {
         return;
     }
 
-    let token = match env::var("GITLAB_TELOXIDE_TOKEN") {
-        Ok(t) => t,
-        Err(_) => {
-            tracing::error!("Cannot send startup alert: GITLAB_TELOXIDE_TOKEN not set");
+    let token = match get_any_bot_token() {
+        Some(t) => t,
+        None => {
+            tracing::error!("Cannot send startup alert: no bot token configured");
             return;
         }
     };

@@ -67,66 +67,74 @@ async fn main() {
 
     let pool: DbPool = Arc::new(pool);
 
-    task::spawn({
+    if let Some(token) = config.gitlab_token.clone() {
         let pool = pool.clone();
-        let token = config.gitlab_token.clone();
         let webhook_base_url = config.webhook_base_url.clone();
-        let admin_chat_id = Some(config.admin_chat_id);
-        BotService::new(
-            BotConfig {
-                bot_name: "Gitlab".to_string(),
-                token,
-                webhook_base_url,
-                admin_chat_id,
-            },
-            pool,
-        )
-        .run_bot()
-    });
-    task::spawn({
-        let pool = pool.clone();
-        let token = config.github_token.clone();
-        let webhook_base_url = config.webhook_base_url.clone();
-        let admin_chat_id = Some(config.admin_chat_id);
-        BotService::new(
-            BotConfig {
-                bot_name: "Github".to_string(),
-                token,
-                webhook_base_url,
-                admin_chat_id,
-            },
-            pool,
-        )
-        .run_bot()
-    });
-    task::spawn({
-        let pool = pool.clone();
-        let token = config.beep_token.clone();
-        let webhook_base_url = config.webhook_base_url.clone();
-        let admin_chat_id = Some(config.admin_chat_id);
-        BotService::new(
-            BotConfig {
-                bot_name: "Beep".to_string(),
-                token,
-                webhook_base_url,
-                admin_chat_id,
-            },
-            pool,
-        )
-        .run_bot()
-    });
+        let admin_chat_id = config.admin_chat_id;
+        task::spawn(
+            BotService::new(
+                BotConfig {
+                    bot_name: "Gitlab".to_string(),
+                    token,
+                    webhook_base_url,
+                    admin_chat_id,
+                },
+                pool,
+            )
+            .run_bot(),
+        );
+        tracing::info!("GitLab bot enabled");
+    }
 
-    task::spawn({
+    if let Some(token) = config.github_token.clone() {
         let pool = pool.clone();
-        let token = config.uptime_token.clone();
-        bots::uptime_bot::run_bot(pool, token)
-    });
+        let webhook_base_url = config.webhook_base_url.clone();
+        let admin_chat_id = config.admin_chat_id;
+        task::spawn(
+            BotService::new(
+                BotConfig {
+                    bot_name: "Github".to_string(),
+                    token,
+                    webhook_base_url,
+                    admin_chat_id,
+                },
+                pool,
+            )
+            .run_bot(),
+        );
+        tracing::info!("GitHub bot enabled");
+    }
 
-    task::spawn({
+    if let Some(token) = config.beep_token.clone() {
         let pool = pool.clone();
-        let token = config.agreement_bot_token.clone();
-        bots::agreement_bot::run_bot(pool, token)
-    });
+        let webhook_base_url = config.webhook_base_url.clone();
+        let admin_chat_id = config.admin_chat_id;
+        task::spawn(
+            BotService::new(
+                BotConfig {
+                    bot_name: "Beep".to_string(),
+                    token,
+                    webhook_base_url,
+                    admin_chat_id,
+                },
+                pool,
+            )
+            .run_bot(),
+        );
+        tracing::info!("Beep bot enabled");
+    }
+
+    if let Some(token) = config.uptime_token.clone() {
+        let pool = pool.clone();
+        task::spawn(bots::uptime_bot::run_bot(pool, token));
+        tracing::info!("Uptime bot enabled");
+    }
+
+    if let Some(token) = config.agreement_bot_token.clone() {
+        let pool = pool.clone();
+        task::spawn(bots::agreement_bot::run_bot(pool, token));
+        tracing::info!("Agreement bot enabled");
+    }
 
     task::spawn({
         let pool = pool.clone();
