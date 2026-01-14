@@ -8,7 +8,7 @@ use notifine::db::DbPool;
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 
 const TELEGRAM_MAX_MESSAGE_LENGTH: usize = 4096;
-const TRUNCATION_SUFFIX: &str = "\n\n<i>... (truncated)</i>";
+const TRUNCATION_SUFFIX: &str = "\n\n... (truncated)";
 
 fn truncate_message(message: String) -> String {
     let char_count = message.chars().count();
@@ -18,8 +18,38 @@ fn truncate_message(message: String) -> String {
 
     let max_content_length = TELEGRAM_MAX_MESSAGE_LENGTH - TRUNCATION_SUFFIX.len();
     let mut truncated: String = message.chars().take(max_content_length).collect();
+
+    // Remove incomplete HTML tag at the end (e.g., "<a href="..." without closing >)
+    if let Some(last_open) = truncated.rfind('<') {
+        if truncated[last_open..].find('>').is_none() {
+            truncated.truncate(last_open);
+        }
+    }
+
+    // Close any unclosed HTML tags
+    truncated = close_unclosed_tags(&truncated);
+
     truncated.push_str(TRUNCATION_SUFFIX);
     truncated
+}
+
+fn close_unclosed_tags(html: &str) -> String {
+    let mut result = html.to_string();
+    let tags = ["a", "b", "i", "u", "s", "code", "pre"];
+
+    for tag in tags {
+        let open_pattern = format!("<{}", tag);
+        let close_pattern = format!("</{}>", tag);
+
+        let open_count = result.matches(&open_pattern).count();
+        let close_count = result.matches(&close_pattern).count();
+
+        for _ in 0..(open_count.saturating_sub(close_count)) {
+            result.push_str(&format!("</{}>", tag));
+        }
+    }
+
+    result
 }
 
 pub struct WebhookContext<'a> {
