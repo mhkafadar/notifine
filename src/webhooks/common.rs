@@ -7,17 +7,26 @@ use actix_web::HttpResponse;
 use notifine::db::DbPool;
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 
-const TELEGRAM_MAX_MESSAGE_LENGTH: usize = 4096;
+const TELEGRAM_MAX_MESSAGE_BYTES: usize = 4096;
 const TRUNCATION_SUFFIX: &str = "\n\n... (truncated)";
+// Reserve space for closing tags and suffix
+const SAFE_MARGIN: usize = 200;
 
 fn truncate_message(message: String) -> String {
-    let char_count = message.chars().count();
-    if char_count <= TELEGRAM_MAX_MESSAGE_LENGTH {
+    if message.len() <= TELEGRAM_MAX_MESSAGE_BYTES {
         return message;
     }
 
-    let max_content_length = TELEGRAM_MAX_MESSAGE_LENGTH - TRUNCATION_SUFFIX.len();
-    let mut truncated: String = message.chars().take(max_content_length).collect();
+    let max_content_bytes = TELEGRAM_MAX_MESSAGE_BYTES - TRUNCATION_SUFFIX.len() - SAFE_MARGIN;
+
+    // Truncate by bytes, but ensure we don't cut in the middle of a UTF-8 character
+    let mut truncated = String::new();
+    for ch in message.chars() {
+        if truncated.len() + ch.len_utf8() > max_content_bytes {
+            break;
+        }
+        truncated.push(ch);
+    }
 
     // Remove incomplete HTML tag at the end (e.g., "<a href="..." without closing >)
     if let Some(last_open) = truncated.rfind('<') {
