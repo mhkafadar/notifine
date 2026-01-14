@@ -7,6 +7,21 @@ use actix_web::HttpResponse;
 use notifine::db::DbPool;
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 
+const TELEGRAM_MAX_MESSAGE_LENGTH: usize = 4096;
+const TRUNCATION_SUFFIX: &str = "\n\n<i>... (truncated)</i>";
+
+fn truncate_message(message: String) -> String {
+    let char_count = message.chars().count();
+    if char_count <= TELEGRAM_MAX_MESSAGE_LENGTH {
+        return message;
+    }
+
+    let max_content_length = TELEGRAM_MAX_MESSAGE_LENGTH - TRUNCATION_SUFFIX.len();
+    let mut truncated: String = message.chars().take(max_content_length).collect();
+    truncated.push_str(TRUNCATION_SUFFIX);
+    truncated
+}
+
 pub struct WebhookContext<'a> {
     pub pool: &'a DbPool,
     pub webhook_url: &'a str,
@@ -100,11 +115,13 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
         }
     };
 
+    let message = truncate_message(ctx.message);
+
     let result = bot
         .send_telegram_message(TelegramMessage {
             chat_id: telegram_chat_id,
             thread_id,
-            message: ctx.message,
+            message,
         })
         .await;
 
