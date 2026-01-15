@@ -14,6 +14,8 @@ use tokio::time::timeout;
 
 const BATCH_SIZE: usize = 10;
 const TIMEOUT_DURATION: Duration = Duration::from_secs(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 
 #[derive(Debug)]
 pub enum HealthCheckError {
@@ -52,7 +54,10 @@ pub struct HealthResult {
     pub duration: Duration,
 }
 
-async fn check_health_urls(pool: &DbPool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn check_health_urls(
+    pool: &DbPool,
+    client: &Client,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let token = match env::var("UPTIME_TELOXIDE_TOKEN") {
         Ok(token) => token,
         Err(_) => {
@@ -80,7 +85,6 @@ async fn check_health_urls(pool: &DbPool) -> Result<(), Box<dyn std::error::Erro
     };
 
     let semaphore = Arc::new(Semaphore::new(BATCH_SIZE));
-    let client = Client::new();
 
     for health_url in health_urls {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
@@ -306,11 +310,34 @@ async fn send_recovery_message(
     Ok(())
 }
 
+/// Creates an HTTP client optimized for uptime monitoring.
+///
+/// The client is configured with:
+/// - Connection timeout: 5 seconds (separate from request timeout)
+/// - Pool idle timeout: 90 seconds (keeps connections alive between check cycles)
+/// - TCP keepalive: enabled to maintain persistent connections
+///
+/// This client should be created once and reused across all check cycles
+/// to benefit from connection pooling and DNS caching.
+fn create_monitoring_client() -> Client {
+    Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+        .tcp_keepalive(Duration::from_secs(60))
+        .build()
+        .expect("Failed to create HTTP client")
+}
+
 pub async fn run_uptime_checker(pool: DbPool) {
     tracing::info!("Starting uptime checker...");
 
+    // Create a single HTTP client that persists across all check cycles.
+    // This enables DNS caching, connection reuse, and prevents false timeouts
+    // caused by DNS resolution delays affecting all monitors simultaneously.
+    let client = create_monitoring_client();
+
     loop {
-        if let Err(e) = check_health_urls(&pool).await {
+        if let Err(e) = check_health_urls(&pool, &client).await {
             tracing::error!("Error in uptime checker: {:?}", e);
         }
 
