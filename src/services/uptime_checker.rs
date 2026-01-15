@@ -9,13 +9,15 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 use teloxide::prelude::*;
-use tokio::sync::Semaphore;
+use tokio::sync::{Mutex, Semaphore};
 use tokio::time::timeout;
 
 const BATCH_SIZE: usize = 10;
 const TIMEOUT_DURATION: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+const SLOW_REQUEST_THRESHOLD: Duration = Duration::from_secs(5);
+const MASS_TIMEOUT_THRESHOLD_PERCENT: f64 = 50.0;
 
 #[derive(Debug)]
 pub enum HealthCheckError {
@@ -48,16 +50,80 @@ impl From<reqwest::Error> for HealthCheckError {
     }
 }
 
+/// Categorizes why a health check failed for debugging purposes.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FailureReason {
+    /// Request completed but returned non-2xx status
+    HttpError,
+    /// Request timed out (exceeded TIMEOUT_DURATION)
+    Timeout,
+    /// Connection failed (DNS, TCP, TLS errors)
+    ConnectionError,
+}
+
 pub struct HealthResult {
     pub success: bool,
     pub status_code: u16,
     pub duration: Duration,
+    pub failure_reason: Option<FailureReason>,
+}
+
+/// Statistics collected during a single check cycle for debugging.
+#[derive(Debug, Default)]
+struct CycleStats {
+    total: u32,
+    success: u32,
+    timeout: u32,
+    connection_error: u32,
+    http_error: u32,
+    slow_requests: u32,
+    max_duration_ms: u64,
+}
+
+impl CycleStats {
+    fn record_result(&mut self, result: &HealthResult) {
+        self.total += 1;
+        let duration_ms = result.duration.as_millis() as u64;
+
+        if duration_ms > self.max_duration_ms {
+            self.max_duration_ms = duration_ms;
+        }
+
+        if result.duration > SLOW_REQUEST_THRESHOLD && result.success {
+            self.slow_requests += 1;
+        }
+
+        if result.success {
+            self.success += 1;
+        } else {
+            match result.failure_reason {
+                Some(FailureReason::Timeout) => self.timeout += 1,
+                Some(FailureReason::ConnectionError) => self.connection_error += 1,
+                Some(FailureReason::HttpError) => self.http_error += 1,
+                None => {}
+            }
+        }
+    }
+
+    fn timeout_percent(&self) -> f64 {
+        if self.total == 0 {
+            0.0
+        } else {
+            (self.timeout as f64 / self.total as f64) * 100.0
+        }
+    }
+
+    fn is_mass_timeout(&self) -> bool {
+        self.total >= 5 && self.timeout_percent() >= MASS_TIMEOUT_THRESHOLD_PERCENT
+    }
 }
 
 async fn check_health_urls(
     pool: &DbPool,
     client: &Client,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let cycle_start = std::time::Instant::now();
+
     let token = match env::var("UPTIME_TELOXIDE_TOKEN") {
         Ok(token) => token,
         Err(_) => {
@@ -84,19 +150,92 @@ async fn check_health_urls(
         }
     };
 
+    let url_count = health_urls.len();
     let semaphore = Arc::new(Semaphore::new(BATCH_SIZE));
+    let stats = Arc::new(Mutex::new(CycleStats::default()));
+    let mut handles = Vec::with_capacity(url_count);
 
     for health_url in health_urls {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
         let client = client.clone();
         let bot = bot.clone();
         let pool = pool.clone();
-        tokio::spawn(async move {
-            if let Err(e) = check_and_notify(&pool, &client, &bot, &health_url).await {
+        let stats = stats.clone();
+
+        let handle = tokio::spawn(async move {
+            let result = check_and_notify(&pool, &client, &bot, &health_url).await;
+
+            // Record stats
+            if let Ok(ref health_result) = result {
+                let mut stats = stats.lock().await;
+                stats.record_result(health_result);
+
+                // Log slow but successful requests
+                if health_result.success && health_result.duration > SLOW_REQUEST_THRESHOLD {
+                    tracing::warn!(
+                        url = %health_url.url,
+                        duration_ms = health_result.duration.as_millis() as u64,
+                        "Slow request (but successful)"
+                    );
+                }
+
+                // Log detailed failure info
+                if !health_result.success {
+                    tracing::warn!(
+                        url = %health_url.url,
+                        status_code = health_result.status_code,
+                        duration_ms = health_result.duration.as_millis() as u64,
+                        failure_reason = ?health_result.failure_reason,
+                        "Health check failed"
+                    );
+                }
+            }
+
+            if let Err(ref e) = result {
                 tracing::error!("Error checking URL {}: {:?}", health_url.url, e);
             }
+
             drop(permit);
         });
+
+        handles.push(handle);
+    }
+
+    // Wait for all checks to complete
+    for handle in handles {
+        let _ = handle.await;
+    }
+
+    // Log cycle summary
+    let cycle_duration = cycle_start.elapsed();
+    let final_stats = stats.lock().await;
+
+    tracing::info!(
+        total = final_stats.total,
+        success = final_stats.success,
+        timeout = final_stats.timeout,
+        connection_error = final_stats.connection_error,
+        http_error = final_stats.http_error,
+        slow_requests = final_stats.slow_requests,
+        max_duration_ms = final_stats.max_duration_ms,
+        cycle_duration_ms = cycle_duration.as_millis() as u64,
+        "Uptime check cycle completed"
+    );
+
+    // Alert on mass timeout - this indicates a problem with the bot, not the monitored services
+    if final_stats.is_mass_timeout() {
+        let message = format!(
+            "MASS TIMEOUT DETECTED: {}/{} checks timed out ({:.1}%). This likely indicates a problem with the monitoring server, not the monitored services. Max request duration: {}ms, Cycle duration: {}ms",
+            final_stats.timeout,
+            final_stats.total,
+            final_stats.timeout_percent(),
+            final_stats.max_duration_ms,
+            cycle_duration.as_millis()
+        );
+        tracing::error!("{}", message);
+        ALERTS
+            .send_alert(&bot, Severity::Critical, "Uptime Bot", &message)
+            .await;
     }
 
     Ok(())
@@ -108,21 +247,42 @@ pub async fn check_health(client: &Client, url: &str) -> HealthResult {
     let duration = start.elapsed();
 
     match response {
-        Ok(Ok(res)) => HealthResult {
-            success: res.status().is_success(),
-            status_code: res.status().as_u16(),
-            duration,
-        },
-        Ok(Err(e)) => HealthResult {
-            success: false,
-            status_code: e.status().map_or(0, |status| status.as_u16()),
-            duration,
-        },
-        Err(_) => HealthResult {
-            success: false,
-            status_code: reqwest::StatusCode::REQUEST_TIMEOUT.as_u16(),
-            duration,
-        },
+        Ok(Ok(res)) => {
+            let is_success = res.status().is_success();
+            HealthResult {
+                success: is_success,
+                status_code: res.status().as_u16(),
+                duration,
+                failure_reason: if is_success {
+                    None
+                } else {
+                    Some(FailureReason::HttpError)
+                },
+            }
+        }
+        Ok(Err(e)) => {
+            // Categorize the error: connection vs other
+            let failure_reason = if e.is_connect() || e.is_timeout() {
+                FailureReason::ConnectionError
+            } else {
+                FailureReason::HttpError
+            };
+            HealthResult {
+                success: false,
+                status_code: e.status().map_or(0, |status| status.as_u16()),
+                duration,
+                failure_reason: Some(failure_reason),
+            }
+        }
+        Err(_) => {
+            // Timeout from tokio::time::timeout
+            HealthResult {
+                success: false,
+                status_code: reqwest::StatusCode::REQUEST_TIMEOUT.as_u16(),
+                duration,
+                failure_reason: Some(FailureReason::Timeout),
+            }
+        }
     }
 }
 
@@ -131,7 +291,7 @@ async fn check_and_notify(
     client: &Client,
     bot: &Bot,
     health_url: &HealthUrl,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<HealthResult, Box<dyn std::error::Error + Send + Sync>> {
     METRICS.increment_uptime_check();
 
     let health_result = check_health(client, &health_url.url).await;
@@ -191,7 +351,7 @@ async fn check_and_notify(
         }
     }
 
-    Ok(())
+    Ok(health_result)
 }
 
 fn is_success_status(status_code: u16) -> bool {
