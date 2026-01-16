@@ -3,6 +3,7 @@ use crate::observability::startup::{
 };
 use crate::services::broadcast::BroadcastWorker;
 use crate::services::reminder_scheduler::run_reminder_scheduler;
+use crate::services::statistics_scheduler::run_statistics_scheduler;
 use crate::{http_server::run_http_server, services::uptime_checker::run_uptime_checker};
 
 use dotenv::dotenv;
@@ -162,6 +163,11 @@ async fn main() {
         }
     });
     tracing::info!("Broadcast worker enabled");
+
+    task::spawn(async move {
+        run_statistics_scheduler().await;
+    });
+    tracing::info!("Statistics scheduler enabled");
 
     alert_startup_success().await;
 

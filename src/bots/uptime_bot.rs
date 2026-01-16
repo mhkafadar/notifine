@@ -763,6 +763,8 @@ pub async fn send_telegram_message(bot: &Bot, message: TelegramMessage) -> Respo
 
     request.await?;
 
+    METRICS.increment_messages_sent_for_bot("uptime");
+
     Ok(())
 }
 

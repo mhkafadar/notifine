@@ -1,4 +1,5 @@
 use crate::bots::bot_service::TelegramMessage;
+use crate::observability::METRICS;
 use notifine::db::DbPool;
 use notifine::find_agreement_user_by_telegram_id;
 use teloxide::prelude::*;
@@ -45,6 +46,8 @@ pub async fn send_telegram_message(bot: &Bot, message: TelegramMessage) -> Respo
 
     request.await?;
 
+    METRICS.increment_messages_sent_for_bot("agreement");
+
     Ok(())
 }
 
@@ -65,6 +68,8 @@ pub async fn send_message_with_keyboard(
     }
 
     request.await?;
+
+    METRICS.increment_messages_sent_for_bot("agreement");
 
     Ok(())
 }

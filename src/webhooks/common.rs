@@ -181,7 +181,7 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
 
     match &result {
         Ok(_) => {
-            METRICS.increment_messages_sent();
+            METRICS.increment_messages_sent_for_bot(ctx.source);
             if let Some(bt) = bot_type {
                 if let Err(e) = upsert_chat_bot_subscription(ctx.pool, telegram_chat_id, bt, true) {
                     tracing::warn!("Failed to track subscription for {:?}: {:?}", bt, e);
