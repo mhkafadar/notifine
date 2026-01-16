@@ -27,22 +27,19 @@ pub async fn handle_broadcast(
     }
 
     let text = msg.text().unwrap_or("");
-    let args: Vec<&str> = text.split_whitespace().skip(1).collect();
 
-    let discovery_mode = args
-        .first()
-        .map(|&s| {
-            let cleaned = s.trim_start_matches(['-', '—', '–']);
-            cleaned.eq_ignore_ascii_case("discover")
-        })
-        .unwrap_or(false);
+    let text_after_command = text.strip_prefix("/broadcast").unwrap_or(text).trim_start();
 
-    let message_start = if discovery_mode { 2 } else { 1 };
-    let broadcast_message: String = text
-        .split_whitespace()
-        .skip(message_start)
-        .collect::<Vec<&str>>()
-        .join(" ");
+    let (discovery_mode, broadcast_message) = if let Some(rest) = text_after_command
+        .strip_prefix("--discover")
+        .or_else(|| text_after_command.strip_prefix("-discover"))
+        .or_else(|| text_after_command.strip_prefix("—discover"))
+        .or_else(|| text_after_command.strip_prefix("–discover"))
+    {
+        (true, rest.trim_start().to_string())
+    } else {
+        (false, text_after_command.to_string())
+    };
 
     if broadcast_message.is_empty() {
         bot.send_message(
@@ -114,22 +111,22 @@ pub async fn handle_broadcast_test(
     }
 
     let text = msg.text().unwrap_or("");
-    let args: Vec<&str> = text.split_whitespace().skip(1).collect();
 
-    let discovery_mode = args
-        .first()
-        .map(|&s| {
-            let cleaned = s.trim_start_matches(['-', '—', '–']);
-            cleaned.eq_ignore_ascii_case("discover")
-        })
-        .unwrap_or(false);
+    let text_after_command = text
+        .strip_prefix("/broadcasttest")
+        .unwrap_or(text)
+        .trim_start();
 
-    let message_start = if discovery_mode { 2 } else { 1 };
-    let broadcast_message: String = text
-        .split_whitespace()
-        .skip(message_start)
-        .collect::<Vec<&str>>()
-        .join(" ");
+    let (discovery_mode, broadcast_message) = if let Some(rest) = text_after_command
+        .strip_prefix("--discover")
+        .or_else(|| text_after_command.strip_prefix("-discover"))
+        .or_else(|| text_after_command.strip_prefix("—discover"))
+        .or_else(|| text_after_command.strip_prefix("–discover"))
+    {
+        (true, rest.trim_start().to_string())
+    } else {
+        (false, text_after_command.to_string())
+    };
 
     if broadcast_message.is_empty() {
         bot.send_message(
