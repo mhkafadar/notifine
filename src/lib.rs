@@ -62,6 +62,10 @@ pub fn get_webhook_url_or_create(
         .optional()?;
 
     if let Some(chat) = result {
+        if !chat.is_active {
+            reactivate_chat(pool, telegram_chat_id)?;
+        }
+
         if let Some(thread_id) = telegram_thread_id {
             if let Some(ref c) = find_chat_by_id(pool, chat.id)? {
                 if c.thread_id.is_none() {
