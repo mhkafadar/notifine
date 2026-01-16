@@ -2,6 +2,8 @@ use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
 use crate::observability::alerts::Severity;
 use crate::observability::telegram_errors::handle_telegram_error;
 use crate::observability::{ALERTS, METRICS};
+use crate::services::broadcast::db::upsert_chat_bot_subscription;
+use crate::services::broadcast::types::BotType;
 use crate::utils::telegram_admin::send_message_to_admin;
 use actix_web::HttpResponse;
 use notifine::db::DbPool;
@@ -141,6 +143,17 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
         }
     };
 
+    if !chat.is_active {
+        tracing::info!(
+            "Webhook rejected for deactivated chat {}: {}",
+            chat_id,
+            ctx.webhook_url
+        );
+        return HttpResponse::BadRequest()
+            .content_type("application/json")
+            .body(r#"{"error":"chat_deactivated","message":"Re-add the bot to receive notifications"}"#);
+    }
+
     tracing::info!("Sending message to chat_id: {}", chat_id);
     tracing::info!("Message: {}", ctx.message);
 
@@ -164,9 +177,16 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
         })
         .await;
 
+    let bot_type = BotType::parse(ctx.bot_name);
+
     match &result {
         Ok(_) => {
             METRICS.increment_messages_sent();
+            if let Some(bt) = bot_type {
+                if let Err(e) = upsert_chat_bot_subscription(ctx.pool, telegram_chat_id, bt, true) {
+                    tracing::warn!("Failed to track subscription for {:?}: {:?}", bt, e);
+                }
+            }
         }
         Err(e) => {
             tracing::error!(
@@ -174,6 +194,12 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                 e,
                 ctx.webhook_url
             );
+            if let Some(bt) = bot_type {
+                if let Err(e) = upsert_chat_bot_subscription(ctx.pool, telegram_chat_id, bt, false)
+                {
+                    tracing::warn!("Failed to track subscription failure for {:?}: {:?}", bt, e);
+                }
+            }
             handle_telegram_error(
                 &bot.bot,
                 e,

@@ -1,6 +1,8 @@
 use crate::bots::bot_service::{StartCommand, TelegramMessage};
 use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
+use crate::services::broadcast::db::upsert_chat_bot_subscription;
+use crate::services::broadcast::types::BotType;
 use crate::services::uptime_checker::check_health;
 use crate::utils::telegram_admin::send_message_to_admin;
 use notifine::db::DbPool;
@@ -824,6 +826,10 @@ async fn handle_new_chat_and_start_command(
         },
     )
     .await?;
+
+    if let Err(e) = upsert_chat_bot_subscription(pool, chat_id, BotType::Uptime, true) {
+        tracing::warn!("Failed to track subscription for Uptime bot: {:?}", e);
+    }
 
     let inviter_username = inviter_username.unwrap_or_else(|| "unknown".to_string());
 

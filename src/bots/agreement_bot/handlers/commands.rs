@@ -1,6 +1,8 @@
 use crate::bots::bot_service::TelegramMessage;
 use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
+use crate::services::broadcast::db::upsert_chat_bot_subscription;
+use crate::services::broadcast::types::BotType;
 use notifine::db::DbPool;
 use notifine::i18n::{t, t_with_args};
 use notifine::models::NewAgreementUser;
@@ -176,6 +178,10 @@ async fn handle_start(
 
             send_disclaimer(bot, chat_id, thread_id, &language).await?;
         }
+    }
+
+    if let Err(e) = upsert_chat_bot_subscription(pool, chat_id, BotType::Agreement, true) {
+        tracing::warn!("Failed to track subscription for Agreement bot: {:?}", e);
     }
 
     Ok(())

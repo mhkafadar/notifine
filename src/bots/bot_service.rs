@@ -1,5 +1,7 @@
 use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
+use crate::services::broadcast::db::upsert_chat_bot_subscription;
+use crate::services::broadcast::types::BotType;
 use crate::utils::telegram_admin::send_message_to_admin;
 use notifine::db::DbPool;
 use notifine::{
@@ -168,6 +170,12 @@ impl BotService {
             message,
         })
         .await?;
+
+        if let Some(bt) = BotType::parse(bot_name) {
+            if let Err(e) = upsert_chat_bot_subscription(&self.pool, chat_id, bt, true) {
+                tracing::warn!("Failed to track subscription for {:?}: {:?}", bt, e);
+            }
+        }
 
         if webhook_info.is_new {
             METRICS.increment_new_chat();

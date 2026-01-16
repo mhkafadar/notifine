@@ -1,6 +1,59 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    broadcast_jobs (id) {
+        id -> Int4,
+        message -> Text,
+        #[max_length = 20]
+        status -> Varchar,
+        created_by_chat_id -> Int8,
+        total_chats -> Int4,
+        processed_count -> Int4,
+        success_count -> Int4,
+        failed_count -> Int4,
+        unreachable_count -> Int4,
+        last_processed_chat_id -> Nullable<Int8>,
+        rate_limit_per_sec -> Int4,
+        started_at -> Nullable<Timestamptz>,
+        completed_at -> Nullable<Timestamptz>,
+        error_message -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+        discovery_mode -> Bool,
+    }
+}
+
+diesel::table! {
+    chat_bot_subscriptions (id) {
+        id -> Int4,
+        telegram_chat_id -> Int8,
+        #[max_length = 20]
+        bot_type -> Varchar,
+        is_reachable -> Bool,
+        last_success_at -> Nullable<Timestamptz>,
+        last_failure_at -> Nullable<Timestamptz>,
+        failure_count -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    pending_deactivations (id) {
+        id -> Int4,
+        telegram_chat_id -> Int8,
+        source_broadcast_job_id -> Nullable<Int4>,
+        failed_bots -> Array<Nullable<Text>>,
+        last_error -> Nullable<Text>,
+        #[max_length = 20]
+        status -> Varchar,
+        reviewed_at -> Nullable<Timestamptz>,
+        reviewed_by_chat_id -> Nullable<Int8>,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     agreement_conversation_states (id) {
         id -> Int4,
         telegram_user_id -> Int8,
@@ -188,6 +241,7 @@ diesel::table! {
 }
 
 diesel::joinable!(agreements -> agreement_users (user_id));
+diesel::joinable!(pending_deactivations -> broadcast_jobs (source_broadcast_job_id));
 diesel::joinable!(reminders -> agreements (agreement_id));
 diesel::joinable!(webhooks -> chats (chat_id));
 
@@ -195,9 +249,12 @@ diesel::allow_tables_to_appear_in_same_query!(
     agreement_conversation_states,
     agreement_users,
     agreements,
+    broadcast_jobs,
+    chat_bot_subscriptions,
     chats,
     daily_stats,
     health_urls,
+    pending_deactivations,
     reminders,
     tesla_auth,
     tesla_orders,

@@ -1,6 +1,7 @@
 use crate::observability::startup::{
     alert_database_error, alert_http_server_error, alert_migration_error, alert_startup_success,
 };
+use crate::services::broadcast::BroadcastWorker;
 use crate::services::reminder_scheduler::run_reminder_scheduler;
 use crate::{http_server::run_http_server, services::uptime_checker::run_uptime_checker};
 
@@ -149,6 +150,16 @@ async fn main() {
             run_reminder_scheduler(pool).await;
         }
     });
+
+    task::spawn({
+        let pool = pool.clone();
+        let admin_chat_id = config.admin_chat_id;
+        async move {
+            let worker = BroadcastWorker::new(pool, admin_chat_id);
+            worker.run().await;
+        }
+    });
+    tracing::info!("Broadcast worker enabled");
 
     alert_startup_success().await;
 
