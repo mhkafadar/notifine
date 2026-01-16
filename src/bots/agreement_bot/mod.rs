@@ -12,7 +12,7 @@ mod utils;
 
 use handlers::{callback_handler, command_handler, message_handler, Command};
 
-pub async fn run_bot(pool: DbPool, token: String) {
+pub async fn run_bot(pool: DbPool, token: String, admin_chat_id: Option<i64>) {
     tracing::info!("Starting Agreement bot...");
 
     let bot = Bot::new(token);
@@ -25,7 +25,7 @@ pub async fn run_bot(pool: DbPool, token: String) {
                     let pool = pool.clone();
                     move |bot: Bot, msg: Message, cmd: Command| {
                         let pool = pool.clone();
-                        async move { command_handler(bot, msg, cmd, pool).await }
+                        async move { command_handler(bot, msg, cmd, pool, admin_chat_id).await }
                     }
                 }),
         )

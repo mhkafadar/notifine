@@ -1,6 +1,10 @@
 use crate::bots::bot_service::{StartCommand, TelegramMessage};
 use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
+use crate::services::broadcast::commands::{
+    handle_approve_all, handle_broadcast, handle_broadcast_cancel, handle_broadcast_status,
+    handle_broadcast_test, handle_pending_list, handle_reject_all,
+};
 use crate::services::broadcast::db::upsert_chat_bot_subscription;
 use crate::services::broadcast::types::BotType;
 use crate::services::uptime_checker::check_health;
@@ -37,6 +41,26 @@ enum Command {
     Delete(String),
     #[command(description = "Show help information.")]
     Help,
+    #[command(
+        description = "Send a broadcast message to all users (admin only). Usage: /broadcast [--discover] <message>"
+    )]
+    Broadcast,
+    #[command(
+        description = "Test broadcast (dry run, shows target count). Usage: /broadcasttest [--discover] <message>"
+    )]
+    Broadcasttest,
+    #[command(description = "Show recent broadcast job status (admin only)")]
+    Broadcaststatus,
+    #[command(
+        description = "Cancel a broadcast job (admin only). Usage: /broadcastcancel <job_id>"
+    )]
+    Broadcastcancel,
+    #[command(description = "List pending chat deactivations (admin only)")]
+    Pendinglist,
+    #[command(description = "Approve all pending deactivations (admin only)")]
+    Approveall,
+    #[command(description = "Reject all pending deactivations (admin only)")]
+    Rejectall,
 }
 
 async fn command_handler(
@@ -44,6 +68,7 @@ async fn command_handler(
     msg: Message,
     command: Command,
     pool: DbPool,
+    admin_chat_id: Option<i64>,
 ) -> ResponseResult<()> {
     let inviter_username = match msg.from() {
         Some(user) => user.username.clone(),
@@ -87,6 +112,17 @@ async fn command_handler(
                 .parse_mode(ParseMode::MarkdownV2)
                 .await?;
         }
+        Command::Broadcast => handle_broadcast(&bot, &msg, &pool, admin_chat_id).await?,
+        Command::Broadcasttest => handle_broadcast_test(&bot, &msg, &pool, admin_chat_id).await?,
+        Command::Broadcaststatus => {
+            handle_broadcast_status(&bot, &msg, &pool, admin_chat_id).await?
+        }
+        Command::Broadcastcancel => {
+            handle_broadcast_cancel(&bot, &msg, &pool, admin_chat_id).await?
+        }
+        Command::Pendinglist => handle_pending_list(&bot, &msg, &pool, admin_chat_id).await?,
+        Command::Approveall => handle_approve_all(&bot, &msg, &pool, admin_chat_id).await?,
+        Command::Rejectall => handle_reject_all(&bot, &msg, &pool, admin_chat_id).await?,
     };
 
     Ok(())
@@ -846,7 +882,7 @@ async fn handle_new_chat_and_start_command(
     Ok(())
 }
 
-pub async fn run_bot(pool: DbPool, token: String) {
+pub async fn run_bot(pool: DbPool, token: String, admin_chat_id: Option<i64>) {
     tracing::info!("Starting bot...");
 
     let bot = Bot::new(token);
@@ -859,7 +895,7 @@ pub async fn run_bot(pool: DbPool, token: String) {
                     let pool = pool.clone();
                     move |bot: Bot, msg: Message, cmd: Command| {
                         let pool = pool.clone();
-                        async move { command_handler(bot, msg, cmd, pool).await }
+                        async move { command_handler(bot, msg, cmd, pool, admin_chat_id).await }
                     }
                 }),
         )

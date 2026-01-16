@@ -2,7 +2,7 @@ use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
 use crate::services::broadcast::commands::{
     handle_approve_all, handle_broadcast, handle_broadcast_cancel, handle_broadcast_status,
-    handle_pending_list, handle_reject_all,
+    handle_broadcast_test, handle_pending_list, handle_reject_all,
 };
 use crate::services::broadcast::db::upsert_chat_bot_subscription;
 use crate::services::broadcast::types::BotType;
@@ -64,6 +64,10 @@ enum Command {
         description = "Send a broadcast message to all users (admin only). Usage: /broadcast [--discover] <message>"
     )]
     Broadcast,
+    #[command(
+        description = "Test broadcast (dry run, shows target count). Usage: /broadcasttest [--discover] <message>"
+    )]
+    Broadcasttest,
     #[command(description = "Show recent broadcast job status (admin only)")]
     Broadcaststatus,
     #[command(
@@ -293,6 +297,17 @@ impl BotService {
                         move |msg: Message, bot: BotService| async move {
                             handle_broadcast(&bot.bot, &msg, &bot.pool, bot.config.admin_chat_id)
                                 .await
+                        },
+                    ))
+                    .branch(case![Command::Broadcasttest].endpoint(
+                        move |msg: Message, bot: BotService| async move {
+                            handle_broadcast_test(
+                                &bot.bot,
+                                &msg,
+                                &bot.pool,
+                                bot.config.admin_chat_id,
+                            )
+                            .await
                         },
                     ))
                     .branch(case![Command::Broadcaststatus].endpoint(

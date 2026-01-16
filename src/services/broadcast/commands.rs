@@ -4,8 +4,8 @@ use teloxide::types::Message;
 use notifine::db::DbPool;
 
 use super::db::{
-    approve_all_deactivations, create_broadcast_job, get_job_by_id, get_pending_deactivations,
-    get_recent_jobs, reject_all_deactivations, update_job_status,
+    approve_all_deactivations, create_broadcast_job, get_all_broadcast_targets, get_job_by_id,
+    get_pending_deactivations, get_recent_jobs, reject_all_deactivations, update_job_status,
 };
 use super::types::BroadcastStatus;
 
@@ -29,7 +29,13 @@ pub async fn handle_broadcast(
     let text = msg.text().unwrap_or("");
     let args: Vec<&str> = text.split_whitespace().skip(1).collect();
 
-    let discovery_mode = args.first().map(|&s| s == "--discover").unwrap_or(false);
+    let discovery_mode = args
+        .first()
+        .map(|&s| {
+            let cleaned = s.trim_start_matches(['-', '—', '–']);
+            cleaned.eq_ignore_ascii_case("discover")
+        })
+        .unwrap_or(false);
 
     let message_start = if discovery_mode { 2 } else { 1 };
     let broadcast_message: String = text
@@ -88,6 +94,96 @@ pub async fn handle_broadcast(
                 .await?;
         }
     }
+
+    Ok(())
+}
+
+pub async fn handle_broadcast_test(
+    bot: &Bot,
+    msg: &Message,
+    pool: &DbPool,
+    admin_chat_id: Option<i64>,
+) -> ResponseResult<()> {
+    if !is_admin(msg, admin_chat_id) {
+        bot.send_message(
+            msg.chat.id,
+            "This command is only available to administrators.",
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let text = msg.text().unwrap_or("");
+    let args: Vec<&str> = text.split_whitespace().skip(1).collect();
+
+    let discovery_mode = args
+        .first()
+        .map(|&s| {
+            let cleaned = s.trim_start_matches(['-', '—', '–']);
+            cleaned.eq_ignore_ascii_case("discover")
+        })
+        .unwrap_or(false);
+
+    let message_start = if discovery_mode { 2 } else { 1 };
+    let broadcast_message: String = text
+        .split_whitespace()
+        .skip(message_start)
+        .collect::<Vec<&str>>()
+        .join(" ");
+
+    if broadcast_message.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "Usage: /broadcasttest [--discover] <message>\n\n\
+            This is a dry run - no messages will be sent.\n\
+            Shows target count and message preview.",
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let targets = match get_all_broadcast_targets(pool) {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("Failed to get broadcast targets: {:?}", e);
+            bot.send_message(msg.chat.id, "Failed to get target count.")
+                .await?;
+            return Ok(());
+        }
+    };
+
+    let mode_str = if discovery_mode {
+        "Discovery (try all bots)"
+    } else {
+        "Normal (stop at first success)"
+    };
+
+    let estimated_time = targets.len() as f64 / DEFAULT_RATE_LIMIT as f64;
+    let time_str = if estimated_time < 60.0 {
+        format!("{:.0} seconds", estimated_time)
+    } else {
+        format!("{:.1} minutes", estimated_time / 60.0)
+    };
+
+    bot.send_message(
+        msg.chat.id,
+        format!(
+            "🧪 <b>BROADCAST TEST (Dry Run)</b>\n\n\
+            <b>Mode:</b> {}\n\
+            <b>Target chats:</b> {}\n\
+            <b>Rate:</b> {} msg/sec\n\
+            <b>Estimated time:</b> {}\n\n\
+            <b>Message preview:</b>\n{}\n\n\
+            ⚠️ No messages were sent. Use /broadcast to send for real.",
+            mode_str,
+            targets.len(),
+            DEFAULT_RATE_LIMIT,
+            time_str,
+            broadcast_message
+        ),
+    )
+    .parse_mode(teloxide::types::ParseMode::Html)
+    .await?;
 
     Ok(())
 }

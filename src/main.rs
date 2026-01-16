@@ -127,13 +127,15 @@ async fn main() {
 
     if let Some(token) = config.uptime_token.clone() {
         let pool = pool.clone();
-        task::spawn(bots::uptime_bot::run_bot(pool, token));
+        let admin_chat_id = config.admin_chat_id;
+        task::spawn(bots::uptime_bot::run_bot(pool, token, admin_chat_id));
         tracing::info!("Uptime bot enabled");
     }
 
     if let Some(token) = config.agreement_bot_token.clone() {
         let pool = pool.clone();
-        task::spawn(bots::agreement_bot::run_bot(pool, token));
+        let admin_chat_id = config.admin_chat_id;
+        task::spawn(bots::agreement_bot::run_bot(pool, token, admin_chat_id));
         tracing::info!("Agreement bot enabled");
     }
 
