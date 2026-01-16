@@ -68,6 +68,19 @@ pub struct HealthResult {
     pub failure_reason: Option<FailureReason>,
 }
 
+fn format_failure_reason(reason: Option<FailureReason>, status_code: u16) -> String {
+    match reason {
+        Some(FailureReason::ConnectionError) => {
+            "Connection Error (DNS/network failure)".to_string()
+        }
+        Some(FailureReason::Timeout) => {
+            format!("Timeout (no response in {}s)", TIMEOUT_DURATION.as_secs())
+        }
+        Some(FailureReason::HttpError) => format!("HTTP Error (status {})", status_code),
+        None => format!("Unknown (status {})", status_code),
+    }
+}
+
 /// Statistics collected during a single check cycle for debugging.
 #[derive(Debug, Default)]
 struct CycleStats {
@@ -261,8 +274,9 @@ pub async fn check_health(client: &Client, url: &str) -> HealthResult {
             }
         }
         Ok(Err(e)) => {
-            // Categorize the error: connection vs other
-            let failure_reason = if e.is_connect() || e.is_timeout() {
+            let failure_reason = if e.is_timeout() {
+                FailureReason::Timeout
+            } else if e.is_connect() {
                 FailureReason::ConnectionError
             } else {
                 FailureReason::HttpError
@@ -328,15 +342,14 @@ async fn check_and_notify(
     } else {
         METRICS.increment_uptime_failure();
         if is_success_status(previous_status_code as u16) {
+            let reason_text =
+                format_failure_reason(health_result.failure_reason, health_result.status_code);
             ALERTS
                 .send_alert(
                     bot,
                     Severity::Error,
                     "Uptime",
-                    &format!(
-                        "URL {} is down (status {})",
-                        health_url.url, health_result.status_code
-                    ),
+                    &format!("URL {} is down ({})", health_url.url, reason_text),
                 )
                 .await;
 
@@ -346,6 +359,7 @@ async fn check_and_notify(
                 health_url,
                 health_result.status_code,
                 health_result.duration,
+                health_result.failure_reason,
             )
             .await?;
         }
@@ -364,6 +378,7 @@ async fn send_failure_message(
     health_url: &HealthUrl,
     status_code: u16,
     duration: Duration,
+    failure_reason: Option<FailureReason>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let chat = match find_chat_by_chat_id(pool, health_url.chat_id) {
         Ok(Some(c)) => c,
@@ -393,9 +408,10 @@ async fn send_failure_message(
     };
     let telegram_id = chat.telegram_id.clone();
 
+    let reason_text = format_failure_reason(failure_reason, status_code);
     let message = format!(
-        "[ALARM] Health check failed for URL: {}\nStatus code: {}\nResponse time: {:.2}s. Uptime Bot will keep sending requests every minute but will send you a message only if it becomes healthy again.",
-        health_url.url, status_code, duration.as_secs_f64()
+        "[ALARM] Health check failed for URL: {}\nReason: {}\nResponse time: {:.2}s. Uptime Bot will keep sending requests every minute but will send you a message only if it becomes healthy again.",
+        health_url.url, reason_text, duration.as_secs_f64()
     );
 
     let chat_id = match telegram_id.parse::<i64>() {
