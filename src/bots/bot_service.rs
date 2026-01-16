@@ -1,13 +1,14 @@
 use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
+use crate::services::broadcast::commands::{
+    handle_approve_all, handle_broadcast, handle_broadcast_cancel, handle_broadcast_status,
+    handle_pending_list, handle_reject_all,
+};
 use crate::services::broadcast::db::upsert_chat_bot_subscription;
 use crate::services::broadcast::types::BotType;
 use crate::utils::telegram_admin::send_message_to_admin;
 use notifine::db::DbPool;
-use notifine::{
-    deactivate_chat, get_all_chats, get_webhook_url_or_create, WebhookGetOrCreateInput,
-};
-use std::collections::HashSet;
+use notifine::{deactivate_chat, get_webhook_url_or_create, WebhookGetOrCreateInput};
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
 use teloxide::dptree::case;
 use teloxide::macros::BotCommands;
@@ -60,13 +61,21 @@ enum Command {
     #[command(description = "starts!")]
     Start,
     #[command(
-        description = "Send a broadcast message to all users (admin only). Usage: /broadcast <message>"
+        description = "Send a broadcast message to all users (admin only). Usage: /broadcast [--discover] <message>"
     )]
     Broadcast,
+    #[command(description = "Show recent broadcast job status (admin only)")]
+    Broadcaststatus,
     #[command(
-        description = "Test a broadcast message by sending only to admin (admin only). Usage: /broadcasttest <message>"
+        description = "Cancel a broadcast job (admin only). Usage: /broadcastcancel <job_id>"
     )]
-    Broadcasttest,
+    Broadcastcancel,
+    #[command(description = "List pending chat deactivations (admin only)")]
+    Pendinglist,
+    #[command(description = "Approve all pending deactivations (admin only)")]
+    Approveall,
+    #[command(description = "Reject all pending deactivations (admin only)")]
+    Rejectall,
 }
 
 impl BotService {
@@ -271,168 +280,6 @@ impl BotService {
         Ok(())
     }
 
-    async fn handle_broadcast_command(&self, msg: Message) -> ResponseResult<()> {
-        let admin_chat_id = match self.config.admin_chat_id {
-            Some(id) => id,
-            None => {
-                tracing::warn!("Admin chat ID not configured, broadcast disabled");
-                self.bot
-                    .send_message(msg.chat.id, "Broadcast is not configured.")
-                    .await?;
-                return Ok(());
-            }
-        };
-
-        if msg.chat.id.0 != admin_chat_id {
-            self.bot
-                .send_message(
-                    msg.chat.id,
-                    "Sorry, this command is only available to administrators.",
-                )
-                .await?;
-            return Ok(());
-        }
-
-        let broadcast_message = msg
-            .text()
-            .and_then(|text| text.split_once(' ').map(|(_, message)| message.to_string()));
-
-        let broadcast_message = match broadcast_message {
-            Some(message) if !message.trim().is_empty() => message,
-            _ => {
-                self.bot
-                    .send_message(
-                        msg.chat.id,
-                        "Please provide a message to broadcast. Usage: /broadcast <message>",
-                    )
-                    .await?;
-                return Ok(());
-            }
-        };
-
-        let chats = match get_all_chats(&self.pool) {
-            Ok(chats) => chats,
-            Err(e) => {
-                tracing::error!("Failed to get chats: {:?}", e);
-                self.bot
-                    .send_message(msg.chat.id, "Failed to retrieve chats from database.")
-                    .await?;
-                return Ok(());
-            }
-        };
-
-        let mut unique_chats = HashSet::new();
-        let mut success_count = 0;
-        let mut total_unique_chats = 0;
-
-        for chat in chats {
-            if unique_chats.insert(chat.telegram_id.clone()) {
-                total_unique_chats += 1;
-                let chat_id: i64 = match chat.telegram_id.parse() {
-                    Ok(id) => id,
-                    Err(e) => {
-                        tracing::error!("Invalid chat telegram_id {}: {}", chat.telegram_id, e);
-                        continue;
-                    }
-                };
-                let telegram_message = TelegramMessage {
-                    chat_id,
-                    thread_id: chat.thread_id.and_then(|tid| tid.parse().ok()),
-                    message: broadcast_message.clone(),
-                };
-
-                match self.send_telegram_message(telegram_message).await {
-                    Ok(_) => success_count += 1,
-                    Err(e) => tracing::error!(
-                        "Failed to send broadcast message to chat {}: {}",
-                        chat.telegram_id,
-                        e
-                    ),
-                }
-            }
-        }
-
-        self.bot
-            .send_message(
-                msg.chat.id,
-                format!(
-                    "Broadcast complete!\nMessage sent successfully to {success_count} out of {total_unique_chats} unique chats."
-                ),
-            )
-            .await?;
-
-        Ok(())
-    }
-
-    async fn handle_broadcast_test_command(&self, msg: Message) -> ResponseResult<()> {
-        let admin_chat_id = match self.config.admin_chat_id {
-            Some(id) => id,
-            None => {
-                tracing::warn!("Admin chat ID not configured, broadcast test disabled");
-                self.bot
-                    .send_message(msg.chat.id, "Broadcast is not configured.")
-                    .await?;
-                return Ok(());
-            }
-        };
-
-        if msg.chat.id.0 != admin_chat_id {
-            self.bot
-                .send_message(
-                    msg.chat.id,
-                    "Sorry, this command is only available to administrators.",
-                )
-                .await?;
-            return Ok(());
-        }
-
-        let broadcast_message = msg
-            .text()
-            .and_then(|text| text.split_once(' ').map(|(_, message)| message.to_string()));
-
-        let broadcast_message = match broadcast_message {
-            Some(message) if !message.trim().is_empty() => message,
-            _ => {
-                self.bot
-                    .send_message(
-                        msg.chat.id,
-                        "Please provide a message to test. Usage: /broadcast-test <message>",
-                    )
-                    .await?;
-                return Ok(());
-            }
-        };
-
-        let total_chats = match get_all_chats(&self.pool) {
-            Ok(chats) => chats.len(),
-            Err(e) => {
-                tracing::error!("Failed to get chats: {:?}", e);
-                0
-            }
-        };
-
-        self.bot
-            .send_message(
-                msg.chat.id,
-                "🔍 TEST MODE - Preview of your broadcast message:\n\n".to_string()
-                    + &broadcast_message,
-            )
-            .await?;
-
-        self.bot
-            .send_message(
-                msg.chat.id,
-                format!(
-                    "✅ Test complete!\n\
-                    This message would be sent to {total_chats} chats if you use /broadcast.\n\
-                    If you're happy with the formatting, use /broadcast with the same message to send it to everyone."
-                ),
-            )
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn run_bot(self) {
         let handler = Update::filter_message()
             .branch(
@@ -444,12 +291,48 @@ impl BotService {
                     ))
                     .branch(case![Command::Broadcast].endpoint(
                         move |msg: Message, bot: BotService| async move {
-                            bot.handle_broadcast_command(msg).await
+                            handle_broadcast(&bot.bot, &msg, &bot.pool, bot.config.admin_chat_id)
+                                .await
                         },
                     ))
-                    .branch(case![Command::Broadcasttest].endpoint(
+                    .branch(case![Command::Broadcaststatus].endpoint(
                         move |msg: Message, bot: BotService| async move {
-                            bot.handle_broadcast_test_command(msg).await
+                            handle_broadcast_status(
+                                &bot.bot,
+                                &msg,
+                                &bot.pool,
+                                bot.config.admin_chat_id,
+                            )
+                            .await
+                        },
+                    ))
+                    .branch(case![Command::Broadcastcancel].endpoint(
+                        move |msg: Message, bot: BotService| async move {
+                            handle_broadcast_cancel(
+                                &bot.bot,
+                                &msg,
+                                &bot.pool,
+                                bot.config.admin_chat_id,
+                            )
+                            .await
+                        },
+                    ))
+                    .branch(case![Command::Pendinglist].endpoint(
+                        move |msg: Message, bot: BotService| async move {
+                            handle_pending_list(&bot.bot, &msg, &bot.pool, bot.config.admin_chat_id)
+                                .await
+                        },
+                    ))
+                    .branch(case![Command::Approveall].endpoint(
+                        move |msg: Message, bot: BotService| async move {
+                            handle_approve_all(&bot.bot, &msg, &bot.pool, bot.config.admin_chat_id)
+                                .await
+                        },
+                    ))
+                    .branch(case![Command::Rejectall].endpoint(
+                        move |msg: Message, bot: BotService| async move {
+                            handle_reject_all(&bot.bot, &msg, &bot.pool, bot.config.admin_chat_id)
+                                .await
                         },
                     )),
             )
