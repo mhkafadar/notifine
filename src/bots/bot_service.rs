@@ -4,11 +4,11 @@ use crate::services::broadcast::commands::{
     handle_approve_all, handle_broadcast, handle_broadcast_cancel, handle_broadcast_status,
     handle_broadcast_test, handle_pending_list, handle_reject_all,
 };
-use crate::services::broadcast::db::upsert_chat_bot_subscription;
+use crate::services::broadcast::db::{handle_bot_removed, upsert_chat_bot_subscription};
 use crate::services::broadcast::types::BotType;
 use crate::utils::telegram_admin::send_message_to_admin;
 use notifine::db::DbPool;
-use notifine::{deactivate_chat, get_webhook_url_or_create, WebhookGetOrCreateInput};
+use notifine::{get_webhook_url_or_create, WebhookGetOrCreateInput};
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
 use teloxide::dptree::case;
 use teloxide::macros::BotCommands;
@@ -236,25 +236,41 @@ impl BotService {
             tracing::info!("Bot removed from chat {}", chat_id);
             METRICS.increment_churn();
 
-            if let Err(e) = deactivate_chat(&self.pool, &chat_id.to_string()) {
-                tracing::error!("Failed to deactivate chat {}: {:?}", chat_id, e);
-                METRICS.increment_errors();
-                ALERTS
-                    .send_alert(
-                        &self.bot,
-                        Severity::Warning,
-                        "Database",
-                        &format!("Failed to deactivate chat {}: {}", chat_id, e),
-                    )
-                    .await;
+            if let Some(bt) = BotType::parse(bot_name) {
+                match handle_bot_removed(&self.pool, chat_id, bt) {
+                    Ok(was_deactivated) => {
+                        let message = if was_deactivated {
+                            format!(
+                                "{bot_name} bot removed from chat {chat_id} - chat deactivated (no reachable bots)"
+                            )
+                        } else {
+                            format!(
+                                "{bot_name} bot removed from chat {chat_id} but other bots still reachable"
+                            )
+                        };
+                        send_message_to_admin(&self.bot, message, 10).await?;
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to handle bot removal for chat {}: {:?}",
+                            chat_id,
+                            e
+                        );
+                        METRICS.increment_errors();
+                        ALERTS
+                            .send_alert(
+                                &self.bot,
+                                Severity::Warning,
+                                "Database",
+                                &format!(
+                                    "Failed to handle bot removal for chat {}: {}",
+                                    chat_id, e
+                                ),
+                            )
+                            .await;
+                    }
+                }
             }
-
-            send_message_to_admin(
-                &self.bot,
-                format!("{bot_name} bot removed from chat: {chat_id}"),
-                10,
-            )
-            .await?;
         }
 
         Ok(())

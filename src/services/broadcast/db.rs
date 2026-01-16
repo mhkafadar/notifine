@@ -443,3 +443,77 @@ pub fn get_job_by_id(pool: &DbPool, job_id: i32) -> Result<Option<BroadcastJob>,
         .first(conn)
         .optional()?)
 }
+
+pub fn mark_bot_unreachable(
+    pool: &DbPool,
+    telegram_chat_id: i64,
+    bot_type: BotType,
+) -> Result<(), DbError> {
+    let conn = &mut pool.get()?;
+
+    diesel::update(
+        chat_bot_subscriptions::table
+            .filter(chat_bot_subscriptions::telegram_chat_id.eq(telegram_chat_id))
+            .filter(chat_bot_subscriptions::bot_type.eq(bot_type.as_str())),
+    )
+    .set((
+        chat_bot_subscriptions::is_reachable.eq(false),
+        chat_bot_subscriptions::updated_at.eq(Utc::now()),
+    ))
+    .execute(conn)?;
+
+    Ok(())
+}
+
+pub fn has_any_reachable_bot(pool: &DbPool, telegram_chat_id: i64) -> Result<bool, DbError> {
+    let conn = &mut pool.get()?;
+
+    let count: i64 = chat_bot_subscriptions::table
+        .filter(chat_bot_subscriptions::telegram_chat_id.eq(telegram_chat_id))
+        .filter(chat_bot_subscriptions::is_reachable.eq(true))
+        .count()
+        .get_result(conn)?;
+
+    Ok(count > 0)
+}
+
+pub fn handle_bot_removed(
+    pool: &DbPool,
+    telegram_chat_id: i64,
+    bot_type: BotType,
+) -> Result<bool, DbError> {
+    let conn = &mut pool.get()?;
+
+    conn.transaction(|conn| {
+        diesel::update(
+            chat_bot_subscriptions::table
+                .filter(chat_bot_subscriptions::telegram_chat_id.eq(telegram_chat_id))
+                .filter(chat_bot_subscriptions::bot_type.eq(bot_type.as_str())),
+        )
+        .set((
+            chat_bot_subscriptions::is_reachable.eq(false),
+            chat_bot_subscriptions::updated_at.eq(Utc::now()),
+        ))
+        .execute(conn)?;
+
+        let count: i64 = chat_bot_subscriptions::table
+            .filter(chat_bot_subscriptions::telegram_chat_id.eq(telegram_chat_id))
+            .filter(chat_bot_subscriptions::is_reachable.eq(true))
+            .count()
+            .get_result(conn)?;
+
+        if count == 0 {
+            diesel::update(
+                chats::table.filter(chats::telegram_id.eq(telegram_chat_id.to_string())),
+            )
+            .set((
+                chats::is_active.eq(false),
+                chats::deactivated_at.eq(Some(Utc::now())),
+            ))
+            .execute(conn)?;
+            return Ok(true);
+        }
+
+        Ok(false)
+    })
+}
