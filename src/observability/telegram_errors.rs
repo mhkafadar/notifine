@@ -3,11 +3,13 @@ use super::{ALERTS, METRICS};
 use teloxide::prelude::*;
 use teloxide::RequestError;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TelegramErrorKind {
     RateLimited,
     BotBlocked,
     ChatNotFound,
+    GroupMigrated { new_chat_id: i64 },
+    NotEnoughRights,
     NetworkError,
     Other,
 }
@@ -15,15 +17,34 @@ pub enum TelegramErrorKind {
 pub fn classify_telegram_error(error: &RequestError) -> TelegramErrorKind {
     match error {
         RequestError::RetryAfter(_) => TelegramErrorKind::RateLimited,
+        RequestError::MigrateToChatId(new_id) => TelegramErrorKind::GroupMigrated {
+            new_chat_id: *new_id,
+        },
         RequestError::Api(api_error) => {
-            let error_str = api_error.to_string().to_lowercase();
-            if error_str.contains("blocked") || error_str.contains("bot was blocked") {
+            let error_str = api_error.to_string();
+            let error_lower = error_str.to_lowercase();
+
+            if error_lower.contains("blocked") || error_lower.contains("bot was blocked") {
                 TelegramErrorKind::BotBlocked
-            } else if error_str.contains("chat not found")
-                || error_str.contains("chat_not_found")
-                || error_str.contains("user not found")
+            } else if error_lower.contains("chat not found")
+                || error_lower.contains("chat_not_found")
+                || error_lower.contains("user not found")
             {
                 TelegramErrorKind::ChatNotFound
+            } else if error_lower.contains("migrated") || error_lower.contains("migrate_to_chat_id")
+            {
+                if let Some(new_id) = extract_migrated_chat_id(&error_str) {
+                    TelegramErrorKind::GroupMigrated {
+                        new_chat_id: new_id,
+                    }
+                } else {
+                    TelegramErrorKind::Other
+                }
+            } else if error_lower.contains("not enough rights")
+                || error_lower.contains("have no rights")
+                || error_lower.contains("need administrator rights")
+            {
+                TelegramErrorKind::NotEnoughRights
             } else {
                 TelegramErrorKind::Other
             }
@@ -31,6 +52,17 @@ pub fn classify_telegram_error(error: &RequestError) -> TelegramErrorKind {
         RequestError::Network(_) => TelegramErrorKind::NetworkError,
         _ => TelegramErrorKind::Other,
     }
+}
+
+pub fn extract_migrated_chat_id(error_str: &str) -> Option<i64> {
+    for part in error_str.split(|c: char| !c.is_ascii_digit() && c != '-') {
+        if part.len() >= 10 {
+            if let Ok(id) = part.parse::<i64>() {
+                return Some(id);
+            }
+        }
+    }
+    None
 }
 
 pub fn get_retry_after_seconds(error: &RequestError) -> Option<u64> {
@@ -88,6 +120,38 @@ pub async fn handle_telegram_error(bot: &Bot, error: &RequestError, chat_id: i64
                 )
                 .await;
         }
+        TelegramErrorKind::GroupMigrated { new_chat_id } => {
+            tracing::info!("Chat {} migrated to supergroup {}", chat_id, new_chat_id);
+            ALERTS
+                .send_alert(
+                    bot,
+                    Severity::Info,
+                    "Telegram-Migrated",
+                    &format!(
+                        "Chat {} migrated to supergroup {} while {}",
+                        chat_id, new_chat_id, context
+                    ),
+                )
+                .await;
+        }
+        TelegramErrorKind::NotEnoughRights => {
+            tracing::warn!(
+                "Bot has insufficient rights to send messages to chat {}",
+                chat_id
+            );
+            METRICS.increment_errors();
+            ALERTS
+                .send_alert(
+                    bot,
+                    Severity::Warning,
+                    "Telegram-NoRights",
+                    &format!(
+                        "Not enough rights to send to chat {} while {}",
+                        chat_id, context
+                    ),
+                )
+                .await;
+        }
         TelegramErrorKind::NetworkError => {
             tracing::error!("Network error sending to chat {}: {}", chat_id, error);
             METRICS.increment_errors();
@@ -130,6 +194,31 @@ mod tests {
             classify_telegram_error(&error),
             TelegramErrorKind::RateLimited
         );
+    }
+
+    #[test]
+    fn test_classify_migrate_to_chat_id() {
+        let error = RequestError::MigrateToChatId(-1003300345700);
+        assert_eq!(
+            classify_telegram_error(&error),
+            TelegramErrorKind::GroupMigrated {
+                new_chat_id: -1003300345700
+            }
+        );
+    }
+
+    #[test]
+    fn test_extract_migrated_chat_id() {
+        assert_eq!(
+            extract_migrated_chat_id("migrated to a supergroup with ID #-1003300345700"),
+            Some(-1003300345700)
+        );
+        assert_eq!(
+            extract_migrated_chat_id("migrate_to_chat_id: -1001234567890"),
+            Some(-1001234567890)
+        );
+        assert_eq!(extract_migrated_chat_id("no id here"), None);
+        assert_eq!(extract_migrated_chat_id("short -123"), None);
     }
 
     #[test]
