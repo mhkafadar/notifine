@@ -57,8 +57,8 @@ pub enum FailureReason {
     HttpError,
     /// Request timed out (exceeded TIMEOUT_DURATION)
     Timeout,
-    /// Connection failed (DNS, TCP, TLS errors)
-    ConnectionError,
+    /// Request failed (connection, SSL, redirect, etc.)
+    RequestError,
 }
 
 pub struct HealthResult {
@@ -66,18 +66,20 @@ pub struct HealthResult {
     pub status_code: u16,
     pub duration: Duration,
     pub failure_reason: Option<FailureReason>,
+    pub error_message: Option<String>,
 }
 
-fn format_failure_reason(reason: Option<FailureReason>, status_code: u16) -> String {
-    match reason {
-        Some(FailureReason::ConnectionError) => {
-            "Connection Error (DNS/network failure)".to_string()
-        }
+fn format_failure_reason(result: &HealthResult) -> String {
+    if let Some(ref error_msg) = result.error_message {
+        return error_msg.clone();
+    }
+
+    match result.failure_reason {
         Some(FailureReason::Timeout) => {
             format!("Timeout (no response in {}s)", TIMEOUT_DURATION.as_secs())
         }
-        Some(FailureReason::HttpError) => format!("HTTP Error (status {})", status_code),
-        None => format!("Unknown (status {})", status_code),
+        Some(FailureReason::HttpError) => format!("HTTP Error (status {})", result.status_code),
+        _ => format!("Unknown (status {})", result.status_code),
     }
 }
 
@@ -87,8 +89,8 @@ struct CycleStats {
     total: u32,
     success: u32,
     timeout: u32,
-    connection_error: u32,
     http_error: u32,
+    request_error: u32,
     slow_requests: u32,
     max_duration_ms: u64,
 }
@@ -111,8 +113,8 @@ impl CycleStats {
         } else {
             match result.failure_reason {
                 Some(FailureReason::Timeout) => self.timeout += 1,
-                Some(FailureReason::ConnectionError) => self.connection_error += 1,
                 Some(FailureReason::HttpError) => self.http_error += 1,
+                Some(FailureReason::RequestError) => self.request_error += 1,
                 None => {}
             }
         }
@@ -227,8 +229,8 @@ async fn check_health_urls(
         total = final_stats.total,
         success = final_stats.success,
         timeout = final_stats.timeout,
-        connection_error = final_stats.connection_error,
         http_error = final_stats.http_error,
+        request_error = final_stats.request_error,
         slow_requests = final_stats.slow_requests,
         max_duration_ms = final_stats.max_duration_ms,
         cycle_duration_ms = cycle_duration.as_millis() as u64,
@@ -271,21 +273,21 @@ pub async fn check_health(client: &Client, url: &str) -> HealthResult {
                 } else {
                     Some(FailureReason::HttpError)
                 },
+                error_message: None,
             }
         }
         Ok(Err(e)) => {
             let failure_reason = if e.is_timeout() {
                 FailureReason::Timeout
-            } else if e.is_connect() {
-                FailureReason::ConnectionError
             } else {
-                FailureReason::HttpError
+                FailureReason::RequestError
             };
             HealthResult {
                 success: false,
                 status_code: e.status().map_or(0, |status| status.as_u16()),
                 duration,
                 failure_reason: Some(failure_reason),
+                error_message: Some(e.to_string()),
             }
         }
         Err(_) => {
@@ -295,6 +297,7 @@ pub async fn check_health(client: &Client, url: &str) -> HealthResult {
                 status_code: reqwest::StatusCode::REQUEST_TIMEOUT.as_u16(),
                 duration,
                 failure_reason: Some(FailureReason::Timeout),
+                error_message: None,
             }
         }
     }
@@ -342,8 +345,7 @@ async fn check_and_notify(
     } else {
         METRICS.increment_uptime_failure();
         if is_success_status(previous_status_code as u16) {
-            let reason_text =
-                format_failure_reason(health_result.failure_reason, health_result.status_code);
+            let reason_text = format_failure_reason(&health_result);
             ALERTS
                 .send_alert(
                     bot,
@@ -353,15 +355,7 @@ async fn check_and_notify(
                 )
                 .await;
 
-            send_failure_message(
-                pool,
-                bot,
-                health_url,
-                health_result.status_code,
-                health_result.duration,
-                health_result.failure_reason,
-            )
-            .await?;
+            send_failure_message(pool, bot, health_url, &health_result).await?;
         }
     }
 
@@ -376,9 +370,7 @@ async fn send_failure_message(
     pool: &DbPool,
     bot: &Bot,
     health_url: &HealthUrl,
-    status_code: u16,
-    duration: Duration,
-    failure_reason: Option<FailureReason>,
+    result: &HealthResult,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let chat = match find_chat_by_chat_id(pool, health_url.chat_id) {
         Ok(Some(c)) => c,
@@ -408,10 +400,10 @@ async fn send_failure_message(
     };
     let telegram_id = chat.telegram_id.clone();
 
-    let reason_text = format_failure_reason(failure_reason, status_code);
+    let reason_text = format_failure_reason(result);
     let message = format!(
         "[ALARM] Health check failed for URL: {}\nReason: {}\nResponse time: {:.2}s. Uptime Bot will keep sending requests every minute but will send you a message only if it becomes healthy again.",
-        health_url.url, reason_text, duration.as_secs_f64()
+        health_url.url, reason_text, result.duration.as_secs_f64()
     );
 
     let chat_id = match telegram_id.parse::<i64>() {

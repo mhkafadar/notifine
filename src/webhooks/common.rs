@@ -201,6 +201,7 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
             );
 
             let error_kind = classify_telegram_error(e);
+            let mut recovery_succeeded = false;
 
             match &error_kind {
                 TelegramErrorKind::GroupMigrated { new_chat_id } => {
@@ -209,36 +210,102 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                         telegram_chat_id,
                         new_chat_id
                     );
-                    if let Err(db_err) = migrate_chat_id(ctx.pool, telegram_chat_id, *new_chat_id) {
-                        tracing::error!("Failed to migrate chat ID in database: {:?}", db_err);
-                    } else {
-                        let retry_result = bot
-                            .send_telegram_message(TelegramMessage {
-                                chat_id: *new_chat_id,
-                                thread_id,
-                                message: message.clone(),
-                            })
-                            .await;
+                    match migrate_chat_id(ctx.pool, telegram_chat_id, *new_chat_id) {
+                        Ok(true) => {
+                            tracing::info!(
+                                "Successfully migrated chat {} to {}",
+                                telegram_chat_id,
+                                new_chat_id
+                            );
+                            let retry_result = bot
+                                .send_telegram_message(TelegramMessage {
+                                    chat_id: *new_chat_id,
+                                    thread_id,
+                                    message: message.clone(),
+                                })
+                                .await;
 
-                        if retry_result.is_ok() {
-                            METRICS.increment_messages_sent_for_bot(ctx.source);
-                            if let Some(bt) = bot_type {
-                                if let Err(sub_err) =
-                                    upsert_chat_bot_subscription(ctx.pool, *new_chat_id, bt, true)
-                                {
-                                    tracing::warn!(
-                                        "Failed to track subscription for {:?}: {:?}",
+                            if retry_result.is_ok() {
+                                METRICS.increment_messages_sent_for_bot(ctx.source);
+                                recovery_succeeded = true;
+                                if let Some(bt) = bot_type {
+                                    if let Err(sub_err) = upsert_chat_bot_subscription(
+                                        ctx.pool,
+                                        *new_chat_id,
                                         bt,
-                                        sub_err
-                                    );
+                                        true,
+                                    ) {
+                                        tracing::warn!(
+                                            "Failed to track subscription for {:?}: {:?}",
+                                            bt,
+                                            sub_err
+                                        );
+                                    }
+                                }
+                            } else if let Err(retry_err) = &retry_result {
+                                tracing::error!(
+                                    "Retry to new chat ID {} failed after migration from {} (webhook: {}): {:?}",
+                                    new_chat_id,
+                                    telegram_chat_id,
+                                    ctx.webhook_url,
+                                    retry_err
+                                );
+                                handle_telegram_error(
+                                    &bot.bot,
+                                    retry_err,
+                                    *new_chat_id,
+                                    "retrying after migration",
+                                )
+                                .await;
+                                recovery_succeeded = true;
+                            }
+                        }
+                        Ok(false) => {
+                            tracing::warn!(
+                                "Chat {} not found in database during migration (possibly already migrated)",
+                                telegram_chat_id
+                            );
+                            let retry_result = bot
+                                .send_telegram_message(TelegramMessage {
+                                    chat_id: *new_chat_id,
+                                    thread_id,
+                                    message: message.clone(),
+                                })
+                                .await;
+
+                            if retry_result.is_ok() {
+                                METRICS.increment_messages_sent_for_bot(ctx.source);
+                                recovery_succeeded = true;
+                                if let Some(bt) = bot_type {
+                                    if let Err(sub_err) = upsert_chat_bot_subscription(
+                                        ctx.pool,
+                                        *new_chat_id,
+                                        bt,
+                                        true,
+                                    ) {
+                                        tracing::warn!(
+                                            "Failed to track subscription for {:?}: {:?}",
+                                            bt,
+                                            sub_err
+                                        );
+                                    }
                                 }
                             }
-                        } else {
-                            tracing::error!(
-                                "Retry to new chat ID {} also failed: {:?}",
-                                new_chat_id,
-                                retry_result
-                            );
+                        }
+                        Err(db_err) => {
+                            tracing::error!("Failed to migrate chat ID in database: {:?}", db_err);
+                            METRICS.increment_errors();
+                            ALERTS
+                                .send_alert(
+                                    &bot.bot,
+                                    Severity::Error,
+                                    "Database-Migration",
+                                    &format!(
+                                        "Failed to migrate chat {} to {}: {}",
+                                        telegram_chat_id, new_chat_id, db_err
+                                    ),
+                                )
+                                .await;
                         }
                     }
                 }
@@ -273,7 +340,8 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                         }
                     }
                 }
-                _ => {
+                TelegramErrorKind::NetworkError | TelegramErrorKind::RateLimited => {}
+                TelegramErrorKind::Other => {
                     if let Some(bt) = bot_type {
                         if let Err(sub_err) =
                             upsert_chat_bot_subscription(ctx.pool, telegram_chat_id, bt, false)
@@ -288,13 +356,15 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                 }
             }
 
-            handle_telegram_error(
-                &bot.bot,
-                e,
-                telegram_chat_id,
-                "sending webhook notification",
-            )
-            .await;
+            if !recovery_succeeded {
+                handle_telegram_error(
+                    &bot.bot,
+                    e,
+                    telegram_chat_id,
+                    "sending webhook notification",
+                )
+                .await;
+            }
         }
     }
 
