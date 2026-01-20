@@ -7,8 +7,10 @@ use crate::services::broadcast::commands::{
 };
 use crate::services::broadcast::db::{handle_bot_removed, upsert_chat_bot_subscription};
 use crate::services::broadcast::types::BotType;
+use crate::services::stats::{record_churn_event, record_new_chat_event};
 use crate::services::uptime_checker::check_health;
 use crate::utils::telegram_admin::send_message_to_admin;
+use html_escape::encode_text;
 use notifine::db::DbPool;
 use notifine::{
     create_chat, create_health_url, delete_health_url_by_id, find_chat_by_telegram_chat_id,
@@ -107,9 +109,7 @@ async fn command_handler(
         }
         Command::Help => {
             let help_text = "Commands available:\n/start\n/new\n/list\n/delete\n/help";
-            bot.send_message(msg.chat.id, help_text)
-                .parse_mode(ParseMode::MarkdownV2)
-                .await?;
+            send_message_simple(&bot, msg.chat.id.0, msg.thread_id, help_text).await?;
         }
         Command::Broadcast => handle_broadcast(&bot, &msg, &pool, admin_chat_id).await?,
         Command::Broadcasttest => handle_broadcast_test(&bot, &msg, &pool, admin_chat_id).await?,
@@ -286,8 +286,9 @@ async fn handle_new_health_url(
     send_message_to_admin(
         bot,
         format!(
-            "New health check endpoint added: {} by @{inviter_username}",
-            new_health_url.url
+            "New health check endpoint added: {} by @{}",
+            encode_text(&new_health_url.url),
+            encode_text(&inviter_username)
         ),
         10,
     )
@@ -315,14 +316,13 @@ async fn handle_list_endpoints(
                     &format!("Failed to find chat in list endpoints: {}", e),
                 )
                 .await;
-            let mut request = bot.send_message(
-                ChatId(telegram_chat_id),
+            send_message_simple(
+                bot,
+                telegram_chat_id,
+                thread_id,
                 "Database error occurred. Please try again later.",
-            );
-            if let Some(tid) = thread_id {
-                request = request.message_thread_id(tid);
-            }
-            request.await?;
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -330,14 +330,13 @@ async fn handle_list_endpoints(
     let chat = match chat {
         Some(c) => c,
         None => {
-            let mut request = bot.send_message(
-                ChatId(telegram_chat_id),
+            send_message_simple(
+                bot,
+                telegram_chat_id,
+                thread_id,
                 "You should call /start command first to initialize the bot.",
-            );
-            if let Some(tid) = thread_id {
-                request = request.message_thread_id(tid);
-            }
-            request.await?;
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -355,40 +354,38 @@ async fn handle_list_endpoints(
                     &format!("Failed to get health URLs: {}", e),
                 )
                 .await;
-            let mut request = bot.send_message(
-                ChatId(telegram_chat_id),
+            send_message_simple(
+                bot,
+                telegram_chat_id,
+                thread_id,
                 "Database error occurred while fetching endpoints. Please try again later.",
-            );
-            if let Some(tid) = thread_id {
-                request = request.message_thread_id(tid);
-            }
-            request.await?;
+            )
+            .await?;
             return Ok(());
         }
     };
 
     if health_urls.is_empty() {
-        let mut request = bot.send_message(
-            ChatId(telegram_chat_id),
+        send_message_simple(
+            bot,
+            telegram_chat_id,
+            thread_id,
             "No health check endpoints found. Use /new <url> to add one.",
-        );
-        if let Some(tid) = thread_id {
-            request = request.message_thread_id(tid);
-        }
-        request.await?;
+        )
+        .await?;
         return Ok(());
     }
 
     let (message, keyboard) = build_endpoint_list(&health_urls);
 
-    let mut request = bot
-        .send_message(ChatId(telegram_chat_id), message)
-        .parse_mode(ParseMode::Html)
-        .reply_markup(InlineKeyboardMarkup::new(keyboard));
-    if let Some(tid) = thread_id {
-        request = request.message_thread_id(tid);
-    }
-    request.await?;
+    send_message_with_keyboard(
+        bot,
+        telegram_chat_id,
+        thread_id,
+        &message,
+        InlineKeyboardMarkup::new(keyboard),
+    )
+    .await?;
 
     Ok(())
 }
@@ -428,14 +425,13 @@ async fn handle_delete_endpoint(
     let id_str = id_str.trim();
 
     if id_str.is_empty() {
-        let mut request = bot.send_message(
-            ChatId(telegram_chat_id),
+        send_message_simple(
+            bot,
+            telegram_chat_id,
+            thread_id,
             "Please provide an ID. Use /list to see available endpoints and their IDs.",
-        );
-        if let Some(tid) = thread_id {
-            request = request.message_thread_id(tid);
-        }
-        request.await?;
+        )
+        .await?;
         return Ok(());
     }
 
@@ -452,14 +448,13 @@ async fn handle_delete_endpoint(
                     &format!("Failed to find chat in delete endpoint: {}", e),
                 )
                 .await;
-            let mut request = bot.send_message(
-                ChatId(telegram_chat_id),
+            send_message_simple(
+                bot,
+                telegram_chat_id,
+                thread_id,
                 "Database error occurred. Please try again later.",
-            );
-            if let Some(tid) = thread_id {
-                request = request.message_thread_id(tid);
-            }
-            request.await?;
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -467,14 +462,13 @@ async fn handle_delete_endpoint(
     let chat = match chat {
         Some(c) => c,
         None => {
-            let mut request = bot.send_message(
-                ChatId(telegram_chat_id),
+            send_message_simple(
+                bot,
+                telegram_chat_id,
+                thread_id,
                 "You should call /start command first to initialize the bot.",
-            );
-            if let Some(tid) = thread_id {
-                request = request.message_thread_id(tid);
-            }
-            request.await?;
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -482,14 +476,13 @@ async fn handle_delete_endpoint(
     let id: i32 = match id_str.parse() {
         Ok(id) => id,
         Err(_) => {
-            let mut request = bot.send_message(
-                ChatId(telegram_chat_id),
+            send_message_simple(
+                bot,
+                telegram_chat_id,
+                thread_id,
                 "Invalid ID. Please provide a numeric ID.",
-            );
-            if let Some(tid) = thread_id {
-                request = request.message_thread_id(tid);
-            }
-            request.await?;
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -507,28 +500,26 @@ async fn handle_delete_endpoint(
                     &format!("Failed to get health URLs in delete endpoint: {}", e),
                 )
                 .await;
-            let mut request = bot.send_message(
-                ChatId(telegram_chat_id),
+            send_message_simple(
+                bot,
+                telegram_chat_id,
+                thread_id,
                 "Database error occurred while fetching endpoints. Please try again later.",
-            );
-            if let Some(tid) = thread_id {
-                request = request.message_thread_id(tid);
-            }
-            request.await?;
+            )
+            .await?;
             return Ok(());
         }
     };
     let health_url = health_urls.iter().find(|h| h.id == id);
 
     if health_url.is_none() {
-        let mut request = bot.send_message(
-            ChatId(telegram_chat_id),
+        send_message_simple(
+            bot,
+            telegram_chat_id,
+            thread_id,
             "Endpoint not found. Use /list to see available endpoints.",
-        );
-        if let Some(tid) = thread_id {
-            request = request.message_thread_id(tid);
-        }
-        request.await?;
+        )
+        .await?;
         return Ok(());
     }
 
@@ -545,14 +536,13 @@ async fn handle_delete_endpoint(
                     &format!("Failed to delete health URL {}: {}", id, e),
                 )
                 .await;
-            let mut request = bot.send_message(
-                ChatId(telegram_chat_id),
+            send_message_simple(
+                bot,
+                telegram_chat_id,
+                thread_id,
                 "Database error occurred while deleting endpoint. Please try again later.",
-            );
-            if let Some(tid) = thread_id {
-                request = request.message_thread_id(tid);
-            }
-            request.await?;
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -562,11 +552,7 @@ async fn handle_delete_endpoint(
         "Failed to delete endpoint.".to_string()
     };
 
-    let mut request = bot.send_message(ChatId(telegram_chat_id), message);
-    if let Some(tid) = thread_id {
-        request = request.message_thread_id(tid);
-    }
-    request.await?;
+    send_message_simple(bot, telegram_chat_id, thread_id, &message).await?;
 
     Ok(())
 }
@@ -719,6 +705,10 @@ async fn chat_member_handler(
         tracing::info!("Bot removed from chat {}", chat_id);
         METRICS.increment_churn();
 
+        if let Err(e) = record_churn_event(&pool, chat_id, bot_name) {
+            tracing::warn!("Failed to record churn event: {:?}", e);
+        }
+
         match handle_bot_removed(&pool, chat_id, BotType::Uptime) {
             Ok(was_deactivated) => {
                 let message = if was_deactivated {
@@ -771,6 +761,40 @@ pub async fn send_telegram_message(bot: &Bot, message: TelegramMessage) -> Respo
 
     METRICS.increment_messages_sent_for_bot("uptime");
 
+    Ok(())
+}
+
+async fn send_message_simple(
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    message: &str,
+) -> ResponseResult<()> {
+    let mut request = bot.send_message(ChatId(chat_id), message);
+    if let Some(tid) = thread_id {
+        request = request.message_thread_id(tid);
+    }
+    request.await?;
+    METRICS.increment_messages_sent_for_bot("uptime");
+    Ok(())
+}
+
+async fn send_message_with_keyboard(
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    message: &str,
+    keyboard: InlineKeyboardMarkup,
+) -> ResponseResult<()> {
+    let mut request = bot
+        .send_message(ChatId(chat_id), message)
+        .parse_mode(ParseMode::Html)
+        .reply_markup(keyboard);
+    if let Some(tid) = thread_id {
+        request = request.message_thread_id(tid);
+    }
+    request.await?;
+    METRICS.increment_messages_sent_for_bot("uptime");
     Ok(())
 }
 
@@ -875,13 +899,23 @@ async fn handle_new_chat_and_start_command(
         tracing::warn!("Failed to track subscription for Uptime bot: {:?}", e);
     }
 
-    let inviter_username = inviter_username.unwrap_or_else(|| "unknown".to_string());
+    let inviter_username_str = inviter_username.unwrap_or_else(|| "unknown".to_string());
 
     if existing_chat.is_none() {
         METRICS.increment_new_chat();
+
+        if let Err(e) =
+            record_new_chat_event(pool, chat_id, bot_name, Some(inviter_username_str.as_str()))
+        {
+            tracing::warn!("Failed to record new chat event: {:?}", e);
+        }
+
         send_message_to_admin(
             bot,
-            format!("New {bot_name} /start command: {chat_id} by @{inviter_username}"),
+            format!(
+                "New {bot_name} /start command: {chat_id} by @{}",
+                encode_text(&inviter_username_str)
+            ),
             10,
         )
         .await?;

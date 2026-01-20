@@ -1,5 +1,6 @@
 use std::env;
 use teloxide::prelude::*;
+use teloxide::types::ParseMode;
 use teloxide::{Bot, RequestError};
 
 pub async fn send_message_to_admin(
@@ -29,7 +30,9 @@ pub async fn send_message_to_admin(
         .unwrap_or(50);
 
     if level <= log_level_threshold {
-        bot.send_message(ChatId(admin_chat_id), message).await?;
+        bot.send_message(ChatId(admin_chat_id), message)
+            .parse_mode(ParseMode::Html)
+            .await?;
     }
 
     Ok(())

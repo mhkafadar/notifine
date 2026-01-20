@@ -3,6 +3,7 @@ use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
 use crate::utils::telegram_admin::send_message_to_admin;
 use actix_web::{post, web, HttpResponse, Responder};
+use html_escape::encode_text;
 use notifine::db::DbPool;
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 use std::env;
@@ -18,7 +19,7 @@ pub async fn handle_beep_webhook(
     let event_name = "beep";
     tracing::info!("Event name: {:?}", event_name);
     let message = match String::from_utf8(body.to_vec()) {
-        Ok(m) => m,
+        Ok(m) => encode_text(&m).to_string(),
         Err(e) => {
             tracing::error!("Invalid UTF-8 in beep webhook body: {}", e);
             return HttpResponse::BadRequest();
@@ -124,7 +125,7 @@ pub async fn handle_beep_webhook(
 
     match &result {
         Ok(_) => {
-            METRICS.increment_messages_sent();
+            METRICS.increment_messages_sent_for_bot("beep");
         }
         Err(e) => {
             tracing::error!(

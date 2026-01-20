@@ -1,3 +1,4 @@
+use html_escape::encode_text;
 use std::collections::HashMap;
 use std::env;
 use std::sync::Mutex;
@@ -96,7 +97,7 @@ impl AlertManager {
             severity.emoji(),
             severity.label(),
             category,
-            message
+            encode_text(message)
         )
     }
 

@@ -6,7 +6,9 @@ use crate::services::broadcast::commands::{
 };
 use crate::services::broadcast::db::{handle_bot_removed, upsert_chat_bot_subscription};
 use crate::services::broadcast::types::BotType;
+use crate::services::stats::{record_churn_event, record_new_chat_event};
 use crate::utils::telegram_admin::send_message_to_admin;
+use html_escape::encode_text;
 use notifine::db::DbPool;
 use notifine::{get_webhook_url_or_create, WebhookGetOrCreateInput};
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
@@ -192,11 +194,23 @@ impl BotService {
 
         if webhook_info.is_new {
             METRICS.increment_new_chat();
-            let inviter_username = inviter_username.unwrap_or_else(|| "unknown".to_string());
+            let inviter_username_str = inviter_username.unwrap_or_else(|| "unknown".to_string());
+
+            if let Err(e) = record_new_chat_event(
+                &self.pool,
+                chat_id,
+                bot_name,
+                Some(inviter_username_str.as_str()),
+            ) {
+                tracing::warn!("Failed to record new chat event: {:?}", e);
+            }
 
             send_message_to_admin(
                 &self.bot,
-                format!("New {bot_name} webhook added: {chat_id} by @{inviter_username}"),
+                format!(
+                    "New {bot_name} webhook added: {chat_id} by @{}",
+                    encode_text(&inviter_username_str)
+                ),
                 10,
             )
             .await?;
@@ -235,6 +249,10 @@ impl BotService {
         ) {
             tracing::info!("Bot removed from chat {}", chat_id);
             METRICS.increment_churn();
+
+            if let Err(e) = record_churn_event(&self.pool, chat_id, bot_name) {
+                tracing::warn!("Failed to record churn event: {:?}", e);
+            }
 
             if let Some(bt) = BotType::parse(bot_name) {
                 match handle_bot_removed(&self.pool, chat_id, bt) {

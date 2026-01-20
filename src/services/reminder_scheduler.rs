@@ -2,6 +2,7 @@ use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
 use chrono::{NaiveDate, Timelike, Utc};
 use chrono_tz::Tz;
+use html_escape::encode_text;
 use notifine::db::DbPool;
 use notifine::i18n::{t, t_with_args};
 use notifine::{
@@ -198,13 +199,13 @@ fn format_reminder_message(due_reminder: &DueReminderWithUserInfo, lang: &str) -
     let agreement_line = t_with_args(
         lang,
         "agreement.reminder.agreement_name",
-        &[&agreement.title],
+        &[encode_text(&agreement.title).as_ref()],
     );
 
     let reminder_line = t_with_args(
         lang,
         "agreement.reminder.reminder_title",
-        &[&reminder.title],
+        &[encode_text(&reminder.title).as_ref()],
     );
 
     let due_date_line = t_with_args(
@@ -214,13 +215,13 @@ fn format_reminder_message(due_reminder: &DueReminderWithUserInfo, lang: &str) -
     );
 
     let amount_line = if let Some(ref amount) = reminder.amount {
-        let currency = &agreement.currency;
+        let currency = encode_text(&agreement.currency);
         format!(
             "\n{}",
             t_with_args(
                 lang,
                 "agreement.reminder.amount",
-                &[&amount.to_string(), currency]
+                &[&amount.to_string(), currency.as_ref()]
             )
         )
     } else {

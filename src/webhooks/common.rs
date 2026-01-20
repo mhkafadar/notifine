@@ -11,6 +11,7 @@ use crate::services::broadcast::db::{
 use crate::services::broadcast::types::BotType;
 use crate::utils::telegram_admin::send_message_to_admin;
 use actix_web::HttpResponse;
+use html_escape::encode_text;
 use notifine::db::DbPool;
 use notifine::{find_chat_by_id, find_webhook_by_webhook_url};
 
@@ -409,7 +410,11 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
 
     if let Err(e) = send_message_to_admin(
         &bot.bot,
-        format!("Event: {}, Chat id: {}", ctx.event_name, chat_id),
+        format!(
+            "Event: {}, Chat id: {}",
+            encode_text(&ctx.event_name),
+            chat_id
+        ),
         50,
     )
     .await
