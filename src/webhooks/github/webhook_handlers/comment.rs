@@ -78,8 +78,8 @@ pub fn handle_comment_event(body: &web::Bytes, full_message: bool) -> String {
         return String::new();
     }
 
-    let sender = &comment_event.sender.login;
-    let repository_name = &comment_event.repository.name;
+    let sender = encode_text(&comment_event.sender.login);
+    let repository_name = encode_text(&comment_event.repository.name);
     let repository_url = &comment_event.repository.html_url;
     let comment = comment_event.process(full_message);
 

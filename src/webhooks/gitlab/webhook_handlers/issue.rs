@@ -42,9 +42,9 @@ pub fn handle_issue_event(body: &web::Bytes) -> String {
 
     let issue_details = &issue_event.object_attributes;
     let url = &issue_details.url;
-    let title = &issue_details.title;
+    let title = encode_text(&issue_details.title);
     let action = &issue_details.action;
-    let user_name = &issue_event.user.name;
+    let user_name = encode_text(&issue_event.user.name);
     let description = encode_text(&issue_details.description);
 
     let action = match action.as_str() {

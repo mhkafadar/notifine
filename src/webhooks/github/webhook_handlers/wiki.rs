@@ -42,9 +42,9 @@ pub fn handle_wiki_event(body: &web::Bytes) -> String {
         return String::new();
     }
 
-    let repository_name = &wiki_event.repository.name;
+    let repository_name = encode_text(&wiki_event.repository.name);
     let repository_url = &wiki_event.repository.html_url;
-    let sender = &wiki_event.sender.login;
+    let sender = encode_text(&wiki_event.sender.login);
 
     // GitHub can send multiple page updates in a single event
     let mut messages = Vec::new();

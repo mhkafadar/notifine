@@ -1,4 +1,5 @@
 use actix_web::web;
+use html_escape::encode_text;
 use serde::Deserialize;
 use ureq::serde_json;
 
@@ -25,12 +26,13 @@ pub fn handle_tag_push_event(body: &web::Bytes) -> String {
         }
     };
 
-    let tag_name = tag_push_event.ref_field.trim_start_matches("refs/tags/");
-    let project_name = &tag_push_event.project.name;
+    let tag_name_raw = tag_push_event.ref_field.trim_start_matches("refs/tags/");
     let project_url = &tag_push_event.project.homepage;
+    let tag_url = format!("{}/-/tree/{}", project_url, tag_name_raw);
 
-    let tag_url = &format!("{}/-/tree/{}", project_url, tag_name);
-    let sender = &tag_push_event.user_name;
+    let tag_name = encode_text(tag_name_raw);
+    let project_name = encode_text(&tag_push_event.project.name);
+    let sender = encode_text(&tag_push_event.user_name);
 
     format!(
         "<b>{sender}</b> pushed a new tag <a href=\"{tag_url}\">{tag_name}</a> to <a href=\"{project_url}\">{project_name}</a>\n",

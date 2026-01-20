@@ -1,6 +1,7 @@
 use super::utils::parse_webhook_payload;
 use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
+use html_escape::encode_text;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -39,21 +40,26 @@ pub fn handle_create_event(body: &web::Bytes, branch_filter: Option<&BranchFilte
     }
 
     let ref_type = &create_event.ref_type;
-    let ref_name = &create_event.ref_name;
-    let repository_name = &create_event.repository.name;
+    let ref_name_raw = &create_event.ref_name;
     let repository_url = &create_event.repository.html_url;
-    let sender = &create_event.sender.login;
-    let ref_url = format!("{}/tree/{}", repository_url, ref_name);
+    let ref_url = format!("{}/tree/{}", repository_url, ref_name_raw);
 
     // Apply branch filter if provided and this is a branch event
     if ref_type == "branch" {
         if let Some(filter) = branch_filter {
-            if !filter.should_process(ref_name) {
-                tracing::info!("Filtered out create branch event for branch: {}", ref_name);
+            if !filter.should_process(ref_name_raw) {
+                tracing::info!(
+                    "Filtered out create branch event for branch: {}",
+                    ref_name_raw
+                );
                 return String::new();
             }
         }
     }
+
+    let ref_name = encode_text(ref_name_raw);
+    let repository_name = encode_text(&create_event.repository.name);
+    let sender = encode_text(&create_event.sender.login);
 
     format!(
         "<b>{sender}</b> created {ref_type} <a href=\"{ref_url}\">{ref_name}</a> in <a href=\"{repository_url}\">{repository_name}</a>"
@@ -76,20 +82,25 @@ pub fn handle_delete_event(body: &web::Bytes, branch_filter: Option<&BranchFilte
     }
 
     let ref_type = &delete_event.ref_type;
-    let ref_name = &delete_event.ref_name;
-    let repository_name = &delete_event.repository.name;
+    let ref_name_raw = &delete_event.ref_name;
     let repository_url = &delete_event.repository.html_url;
-    let sender = &delete_event.sender.login;
 
     // Apply branch filter if provided and this is a branch event
     if ref_type == "branch" {
         if let Some(filter) = branch_filter {
-            if !filter.should_process(ref_name) {
-                tracing::info!("Filtered out delete branch event for branch: {}", ref_name);
+            if !filter.should_process(ref_name_raw) {
+                tracing::info!(
+                    "Filtered out delete branch event for branch: {}",
+                    ref_name_raw
+                );
                 return String::new();
             }
         }
     }
+
+    let ref_name = encode_text(ref_name_raw);
+    let repository_name = encode_text(&delete_event.repository.name);
+    let sender = encode_text(&delete_event.sender.login);
 
     format!(
         "<b>{sender}</b> deleted {ref_type} {ref_name} in <a href=\"{repository_url}\">{repository_name}</a>"

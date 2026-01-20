@@ -43,9 +43,9 @@ pub fn handle_issue_event(body: &web::Bytes) -> String {
     let issue_title = encode_text(&issue_event.issue.title);
     let issue_url = &issue_event.issue.html_url;
     let issue_number = issue_event.issue.number;
-    let repository_name = &issue_event.repository.name;
+    let repository_name = encode_text(&issue_event.repository.name);
     let repository_url = &issue_event.repository.html_url;
-    let sender = &issue_event.sender.login;
+    let sender = encode_text(&issue_event.sender.login);
 
     match action.as_str() {
         "opened" => format!(

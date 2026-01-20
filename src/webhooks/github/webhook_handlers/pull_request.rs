@@ -55,11 +55,11 @@ pub fn handle_pull_request_event(
     let pr_title = encode_text(&pr_event.pull_request.title);
     let pr_url = &pr_event.pull_request.html_url;
     let pr_number = pr_event.pull_request.number;
-    let repository_name = &pr_event.repository.name;
+    let repository_name = encode_text(&pr_event.repository.name);
     let repository_url = &pr_event.repository.html_url;
-    let sender = &pr_event.sender.login;
-    let source_branch = &pr_event.pull_request.head.label;
-    let target_branch = &pr_event.pull_request.base.label;
+    let sender = encode_text(&pr_event.sender.login);
+    let source_branch = encode_text(&pr_event.pull_request.head.label);
+    let target_branch = encode_text(&pr_event.pull_request.base.label);
 
     // Extract branch name from target branch label (format: "owner:branch-name")
     let target_branch_name = target_branch.split(':').next_back().unwrap_or("");

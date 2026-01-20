@@ -90,15 +90,17 @@ struct CreateFirstRow {
 }
 
 fn create_first_row(push_event: &PushEvent) -> CreateFirstRow {
-    let branch_name = push_event
+    let branch_name_raw = push_event
         .ref_field
         .split("refs/heads/")
         .last()
         .unwrap_or(&push_event.ref_field);
-    let project_name = &push_event.project.name;
     let project_url = &push_event.project.homepage;
-    let branch_url = format!("{project_url}/tree/{branch_name}");
-    let sender = &push_event.user_name;
+    let branch_url = format!("{project_url}/tree/{branch_name_raw}");
+
+    let branch_name = encode_text(branch_name_raw);
+    let project_name = encode_text(&push_event.project.name);
+    let sender = encode_text(&push_event.user_name);
     let mut delete_branch_event = false;
     let commits_length = push_event.commits.len();
     let commit_or_commits = if commits_length == 1 {

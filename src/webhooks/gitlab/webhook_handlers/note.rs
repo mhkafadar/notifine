@@ -61,7 +61,7 @@ pub fn handle_note_event(body: &web::Bytes, full_message: bool) -> String {
         }
     };
 
-    let user_name = &note_event.user.name;
+    let user_name = encode_text(&note_event.user.name);
     let note_details = &note_event.object_attributes;
     let url = &note_details.url;
     let noteable_type = &note_details.noteable_type;

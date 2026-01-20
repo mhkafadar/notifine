@@ -1,6 +1,7 @@
 use super::utils::parse_webhook_payload;
 use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
+use html_escape::encode_text;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -47,21 +48,23 @@ pub fn handle_workflow_run_event(
 
     let action = &workflow_event.action;
     let workflow_run = &workflow_event.workflow_run;
-    let repository_name = &workflow_event.repository.name;
     let repository_url = &workflow_event.repository.html_url;
-    let sender = &workflow_event.sender.login;
     let run_url = &workflow_run.html_url;
-    let branch = &workflow_run.head_branch;
+    let branch_raw = &workflow_run.head_branch;
     let run_number = workflow_run.run_number;
-    let workflow_name = workflow_run.name.as_deref().unwrap_or("workflow");
 
     // Apply branch filter if provided
     if let Some(filter) = branch_filter {
-        if !filter.should_process(branch) {
-            tracing::info!("Filtered out workflow run event for branch: {}", branch);
+        if !filter.should_process(branch_raw) {
+            tracing::info!("Filtered out workflow run event for branch: {}", branch_raw);
             return String::new();
         }
     }
+
+    let repository_name = encode_text(&workflow_event.repository.name);
+    let sender = encode_text(&workflow_event.sender.login);
+    let branch = encode_text(branch_raw);
+    let workflow_name = encode_text(workflow_run.name.as_deref().unwrap_or("workflow"));
 
     match (action.as_str(), workflow_run.status.as_str()) {
         ("requested", _) => format!(

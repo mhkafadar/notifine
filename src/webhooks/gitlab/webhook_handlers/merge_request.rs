@@ -1,5 +1,6 @@
 use crate::utils::branch_filter::BranchFilter;
 use actix_web::web;
+use html_escape::encode_text;
 use serde::Deserialize;
 use ureq::serde_json;
 
@@ -38,17 +39,18 @@ pub fn handle_merge_request_event(
     };
     let merge_request_details = &merge_request_event.object_attributes;
     let url = &merge_request_details.url;
-    let title = &merge_request_details.title;
-    let source_branch = &merge_request_details.source_branch;
-    let target_branch = &merge_request_details.target_branch;
-    let sender = &merge_request_event.user.name;
+    let title = encode_text(&merge_request_details.title);
+    let source_branch = encode_text(&merge_request_details.source_branch);
+    let target_branch_raw = &merge_request_details.target_branch;
+    let target_branch = encode_text(target_branch_raw);
+    let sender = encode_text(&merge_request_event.user.name);
 
     // Apply branch filter if provided (filter based on target branch)
     if let Some(filter) = branch_filter {
-        if !filter.should_process(target_branch) {
+        if !filter.should_process(target_branch_raw) {
             tracing::info!(
                 "Filtered out GitLab merge request event for target branch: {}",
-                target_branch
+                target_branch_raw
             );
             return String::new();
         }
