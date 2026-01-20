@@ -1,6 +1,6 @@
 use crate::schema::{
-    agreement_conversation_states, agreement_users, agreements, chats, daily_stats, health_urls,
-    reminders, webhooks,
+    agreement_conversation_states, agreement_users, agreements, chat_events, chats, daily_stats,
+    health_urls, reminders, webhooks,
 };
 use bigdecimal::BigDecimal;
 use chrono::{DateTime, NaiveDate, Utc};
@@ -259,4 +259,30 @@ pub struct NewReminder {
     pub amount: Option<BigDecimal>,
     pub due_date: NaiveDate,
     pub reminder_date: NaiveDate,
+}
+
+#[derive(Debug, Queryable, Identifiable, Selectable)]
+#[diesel(table_name = chat_events)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct ChatEvent {
+    pub id: i32,
+    pub telegram_chat_id: i64,
+    pub event_type: String,
+    pub bot_type: String,
+    pub inviter_username: Option<String>,
+    pub is_cross_bot_user: bool,
+    pub other_bots: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = chat_events)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewChatEvent<'a> {
+    pub telegram_chat_id: i64,
+    pub event_type: &'a str,
+    pub bot_type: &'a str,
+    pub inviter_username: Option<&'a str>,
+    pub is_cross_bot_user: bool,
+    pub other_bots: Option<&'a str>,
 }

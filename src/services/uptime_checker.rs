@@ -418,6 +418,7 @@ async fn send_failure_message(
         }
     };
     bot.send_message(chat_id, message).await?;
+    METRICS.increment_messages_sent_for_bot("uptime");
 
     Ok(())
 }
@@ -474,6 +475,7 @@ async fn send_recovery_message(
         }
     };
     bot.send_message(chat_id, message).await?;
+    METRICS.increment_messages_sent_for_bot("uptime");
 
     Ok(())
 }

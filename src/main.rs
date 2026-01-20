@@ -164,8 +164,11 @@ async fn main() {
     });
     tracing::info!("Broadcast worker enabled");
 
-    task::spawn(async move {
-        run_statistics_scheduler().await;
+    task::spawn({
+        let pool = pool.clone();
+        async move {
+            run_statistics_scheduler(pool).await;
+        }
     });
     tracing::info!("Statistics scheduler enabled");
 

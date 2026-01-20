@@ -1,6 +1,23 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    chat_events (id) {
+        id -> Int4,
+        telegram_chat_id -> Int8,
+        #[max_length = 20]
+        event_type -> Varchar,
+        #[max_length = 20]
+        bot_type -> Varchar,
+        #[max_length = 255]
+        inviter_username -> Nullable<Varchar>,
+        is_cross_bot_user -> Bool,
+        #[max_length = 255]
+        other_bots -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     broadcast_jobs (id) {
         id -> Int4,
         message -> Text,
@@ -251,6 +268,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     agreements,
     broadcast_jobs,
     chat_bot_subscriptions,
+    chat_events,
     chats,
     daily_stats,
     health_urls,
