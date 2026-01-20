@@ -1,7 +1,7 @@
 use crate::bots::bot_service::{BotConfig, BotService, TelegramMessage};
 use crate::observability::alerts::Severity;
 use crate::observability::telegram_errors::{
-    classify_telegram_error, handle_telegram_error, TelegramErrorKind,
+    classify_telegram_error, get_retry_after_seconds, handle_telegram_error, TelegramErrorKind,
 };
 use crate::observability::{ALERTS, METRICS};
 use crate::services::broadcast::db::{
@@ -340,7 +340,46 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                         }
                     }
                 }
-                TelegramErrorKind::NetworkError | TelegramErrorKind::RateLimited => {}
+                TelegramErrorKind::RateLimited => {
+                    let retry_after = get_retry_after_seconds(e).unwrap_or(5);
+                    tracing::info!(
+                        "Rate limited for chat {}, waiting {}s before retry",
+                        telegram_chat_id,
+                        retry_after
+                    );
+                    tokio::time::sleep(std::time::Duration::from_secs(retry_after)).await;
+
+                    let retry_result = bot
+                        .send_telegram_message(TelegramMessage {
+                            chat_id: telegram_chat_id,
+                            thread_id,
+                            message: message.clone(),
+                        })
+                        .await;
+
+                    if retry_result.is_ok() {
+                        METRICS.increment_messages_sent_for_bot(ctx.source);
+                        recovery_succeeded = true;
+                        if let Some(bt) = bot_type {
+                            if let Err(sub_err) =
+                                upsert_chat_bot_subscription(ctx.pool, telegram_chat_id, bt, true)
+                            {
+                                tracing::warn!(
+                                    "Failed to track subscription for {:?}: {:?}",
+                                    bt,
+                                    sub_err
+                                );
+                            }
+                        }
+                    } else {
+                        tracing::error!(
+                            "Retry after rate limit failed for chat {}: {:?}",
+                            telegram_chat_id,
+                            retry_result
+                        );
+                    }
+                }
+                TelegramErrorKind::NetworkError => {}
                 TelegramErrorKind::Other => {
                     if let Some(bt) = bot_type {
                         if let Err(sub_err) =
