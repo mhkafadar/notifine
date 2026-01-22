@@ -256,6 +256,38 @@ async fn check_health_urls(
     Ok(())
 }
 
+fn extract_error_details(e: &reqwest::Error) -> String {
+    let mut parts = Vec::with_capacity(2);
+
+    if e.is_timeout() {
+        parts.push("timeout".to_string());
+    } else if e.is_connect() {
+        parts.push("connection failed".to_string());
+    } else if e.is_request() {
+        parts.push("request failed".to_string());
+    }
+
+    let mut root_cause: Option<String> = None;
+    let mut source = std::error::Error::source(e);
+    while let Some(err) = source {
+        let msg = err.to_string();
+        if !msg.is_empty() {
+            root_cause = Some(msg);
+        }
+        source = std::error::Error::source(err);
+    }
+
+    if let Some(cause) = root_cause {
+        parts.push(cause);
+    }
+
+    if parts.is_empty() {
+        e.to_string()
+    } else {
+        parts.join(": ")
+    }
+}
+
 pub async fn check_health(client: &Client, url: &str) -> HealthResult {
     let start = std::time::Instant::now();
     let response = timeout(TIMEOUT_DURATION, client.get(url).send()).await;
@@ -287,7 +319,7 @@ pub async fn check_health(client: &Client, url: &str) -> HealthResult {
                 status_code: e.status().map_or(0, |status| status.as_u16()),
                 duration,
                 failure_reason: Some(failure_reason),
-                error_message: Some(e.to_string()),
+                error_message: Some(extract_error_details(&e)),
             }
         }
         Err(_) => {
@@ -491,6 +523,7 @@ async fn send_recovery_message(
 /// to benefit from connection pooling and DNS caching.
 fn create_monitoring_client() -> Client {
     Client::builder()
+        .user_agent("NotifineUptimeBot/1.0")
         .connect_timeout(CONNECT_TIMEOUT)
         .pool_idle_timeout(POOL_IDLE_TIMEOUT)
         .tcp_keepalive(Duration::from_secs(60))
