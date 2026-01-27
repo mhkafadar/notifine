@@ -1,4 +1,5 @@
 use chrono::{Duration, NaiveDate};
+use chrono_tz::Europe::Istanbul;
 use diesel::prelude::*;
 use notifine::db::{DbError, DbPool};
 use notifine::models::{ChatEvent, NewChatEvent};
@@ -29,14 +30,23 @@ pub fn record_chat_event(
         .get_result(conn)?)
 }
 
-pub fn get_todays_chat_events(pool: &DbPool, date: NaiveDate) -> Result<Vec<ChatEvent>, DbError> {
+pub fn get_chat_events_for_date(pool: &DbPool, date: NaiveDate) -> Result<Vec<ChatEvent>, DbError> {
     let conn = &mut pool.get()?;
 
-    let start_of_day = date.and_hms_opt(0, 0, 0).expect("valid time").and_utc();
+    let start_of_day = date
+        .and_hms_opt(0, 0, 0)
+        .expect("valid time")
+        .and_local_timezone(Istanbul)
+        .single()
+        .expect("valid Istanbul timezone")
+        .to_utc();
     let start_of_next_day = (date + Duration::days(1))
         .and_hms_opt(0, 0, 0)
         .expect("valid time")
-        .and_utc();
+        .and_local_timezone(Istanbul)
+        .single()
+        .expect("valid Istanbul timezone")
+        .to_utc();
 
     Ok(chat_events::table
         .filter(chat_events::created_at.ge(start_of_day))

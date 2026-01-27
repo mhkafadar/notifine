@@ -1,5 +1,5 @@
 use crate::observability::METRICS;
-use crate::services::stats::get_todays_chat_events;
+use crate::services::stats::get_chat_events_for_date;
 use crate::utils::telegram_admin::send_message_to_admin;
 use chrono::{Duration, Utc};
 use chrono_tz::Europe::Istanbul;
@@ -67,8 +67,8 @@ async fn send_daily_report(bot: &Bot, pool: &DbPool) {
     let total_webhooks =
         snapshot.github_webhooks + snapshot.gitlab_webhooks + snapshot.beep_webhooks;
 
-    let today = Utc::now().with_timezone(&Istanbul).date_naive();
-    let events = match get_todays_chat_events(pool, today) {
+    let yesterday = (Utc::now().with_timezone(&Istanbul) - Duration::days(1)).date_naive();
+    let events = match get_chat_events_for_date(pool, yesterday) {
         Ok(events) => events,
         Err(e) => {
             tracing::error!("Failed to fetch chat events for daily report: {:?}", e);
