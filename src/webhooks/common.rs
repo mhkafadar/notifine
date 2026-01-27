@@ -5,8 +5,7 @@ use crate::observability::telegram_errors::{
 };
 use crate::observability::{ALERTS, METRICS};
 use crate::services::broadcast::db::{
-    handle_bot_removed, mark_all_bots_unreachable_and_deactivate, migrate_chat_id,
-    upsert_chat_bot_subscription,
+    handle_bot_removed, migrate_chat_id, upsert_chat_bot_subscription,
 };
 use crate::services::broadcast::types::BotType;
 use crate::utils::telegram_admin::send_message_to_admin;
@@ -155,9 +154,9 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
             chat_id,
             ctx.webhook_url
         );
-        return HttpResponse::BadRequest()
+        return HttpResponse::NotFound()
             .content_type("application/json")
-            .body(r#"{"error":"chat_deactivated","message":"Re-add the bot to receive notifications"}"#);
+            .body(r#"{"error":"webhook_inactive","message":"Webhook deactivated. Re-add bot to reactivate."}"#);
     }
 
     tracing::info!("Sending message to chat_id: {}", chat_id);
@@ -243,6 +242,17 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                                         );
                                     }
                                 }
+                                ALERTS
+                                    .send_alert(
+                                        &bot.bot,
+                                        Severity::Info,
+                                        "Chat-Migrated",
+                                        &format!(
+                                            "Chat migrated from {} to {} for bot {:?}",
+                                            telegram_chat_id, new_chat_id, bot_type
+                                        ),
+                                    )
+                                    .await;
                             } else if let Err(retry_err) = &retry_result {
                                 tracing::error!(
                                     "Retry to new chat ID {} failed after migration from {} (webhook: {}): {:?}",
@@ -291,6 +301,17 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                                         );
                                     }
                                 }
+                                ALERTS
+                                    .send_alert(
+                                        &bot.bot,
+                                        Severity::Info,
+                                        "Chat-Migrated",
+                                        &format!(
+                                            "Chat migrated to {} for bot {:?} (already migrated in DB)",
+                                            new_chat_id, bot_type
+                                        ),
+                                    )
+                                    .await;
                             }
                         }
                         Err(db_err) => {
@@ -310,27 +331,16 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                         }
                     }
                 }
-                TelegramErrorKind::ChatNotFound => {
-                    tracing::warn!(
-                        "Chat {} not found, marking all bots unreachable and deactivating",
-                        telegram_chat_id
-                    );
-                    if let Err(db_err) =
-                        mark_all_bots_unreachable_and_deactivate(ctx.pool, telegram_chat_id)
-                    {
-                        tracing::error!(
-                            "Failed to deactivate chat {}: {:?}",
-                            telegram_chat_id,
-                            db_err
-                        );
-                    }
-                }
-                TelegramErrorKind::BotBlocked | TelegramErrorKind::NotEnoughRights => {
+                TelegramErrorKind::ChatNotFound
+                | TelegramErrorKind::BotBlocked
+                | TelegramErrorKind::NotEnoughRights
+                | TelegramErrorKind::Other => {
                     if let Some(bt) = bot_type {
                         tracing::info!(
-                            "Bot {:?} blocked/no rights for chat {}, marking as unreachable",
-                            bt,
-                            telegram_chat_id
+                            "Telegram error {:?} for chat {}, marking bot {:?} as unreachable",
+                            error_kind,
+                            telegram_chat_id,
+                            bt
                         );
                         if let Err(db_err) = handle_bot_removed(ctx.pool, telegram_chat_id, bt) {
                             tracing::error!(
@@ -338,7 +348,25 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                                 telegram_chat_id,
                                 db_err
                             );
+                        } else {
+                            ALERTS
+                                .send_alert(
+                                    &bot.bot,
+                                    Severity::Warning,
+                                    "Bot-Deactivated",
+                                    &format!(
+                                        "Bot {:?} marked unreachable for chat {} (error: {:?})",
+                                        bt, telegram_chat_id, error_kind
+                                    ),
+                                )
+                                .await;
                         }
+                    } else {
+                        tracing::warn!(
+                            "Cannot track bot removal for chat {} - unknown bot type '{}'",
+                            telegram_chat_id,
+                            ctx.bot_name
+                        );
                     }
                 }
                 TelegramErrorKind::RateLimited => {
@@ -380,23 +408,54 @@ pub async fn process_webhook(ctx: WebhookContext<'_>) -> HttpResponse {
                         );
                     }
                 }
-                TelegramErrorKind::NetworkError => {}
-                TelegramErrorKind::Other => {
-                    if let Some(bt) = bot_type {
-                        if let Err(sub_err) =
-                            upsert_chat_bot_subscription(ctx.pool, telegram_chat_id, bt, false)
-                        {
-                            tracing::warn!(
-                                "Failed to track subscription failure for {:?}: {:?}",
-                                bt,
-                                sub_err
-                            );
+                TelegramErrorKind::NetworkError => {
+                    tracing::warn!(
+                        "Network error for chat {}, retrying once after 2s",
+                        telegram_chat_id
+                    );
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+                    let retry_result = bot
+                        .send_telegram_message(TelegramMessage {
+                            chat_id: telegram_chat_id,
+                            thread_id,
+                            message: message.clone(),
+                        })
+                        .await;
+
+                    if retry_result.is_ok() {
+                        METRICS.increment_messages_sent_for_bot(ctx.source);
+                        recovery_succeeded = true;
+                        if let Some(bt) = bot_type {
+                            if let Err(sub_err) =
+                                upsert_chat_bot_subscription(ctx.pool, telegram_chat_id, bt, true)
+                            {
+                                tracing::warn!(
+                                    "Failed to track subscription for {:?}: {:?}",
+                                    bt,
+                                    sub_err
+                                );
+                            }
                         }
+                    } else {
+                        tracing::error!(
+                            "Retry after network error failed for chat {}: {:?}",
+                            telegram_chat_id,
+                            retry_result
+                        );
                     }
                 }
             }
 
-            if !recovery_succeeded {
+            let needs_generic_alert = !recovery_succeeded
+                && matches!(
+                    error_kind,
+                    TelegramErrorKind::RateLimited
+                        | TelegramErrorKind::NetworkError
+                        | TelegramErrorKind::GroupMigrated { .. }
+                );
+
+            if needs_generic_alert {
                 handle_telegram_error(
                     &bot.bot,
                     e,

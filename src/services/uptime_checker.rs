@@ -18,6 +18,8 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const SLOW_REQUEST_THRESHOLD: Duration = Duration::from_secs(5);
 const MASS_TIMEOUT_THRESHOLD_PERCENT: f64 = 50.0;
+const MAX_RETRIES: u32 = 2;
+const INITIAL_BACKOFF: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
 pub enum HealthCheckError {
@@ -322,17 +324,35 @@ pub async fn check_health(client: &Client, url: &str) -> HealthResult {
                 error_message: Some(extract_error_details(&e)),
             }
         }
-        Err(_) => {
-            // Timeout from tokio::time::timeout
-            HealthResult {
-                success: false,
-                status_code: reqwest::StatusCode::REQUEST_TIMEOUT.as_u16(),
-                duration,
-                failure_reason: Some(FailureReason::Timeout),
-                error_message: None,
-            }
-        }
+        Err(_) => HealthResult {
+            success: false,
+            status_code: reqwest::StatusCode::REQUEST_TIMEOUT.as_u16(),
+            duration,
+            failure_reason: Some(FailureReason::Timeout),
+            error_message: None,
+        },
     }
+}
+
+fn is_retryable(result: &HealthResult) -> bool {
+    matches!(
+        result.failure_reason,
+        Some(FailureReason::Timeout) | Some(FailureReason::RequestError)
+    )
+}
+
+async fn check_health_with_retry(client: &Client, url: &str) -> HealthResult {
+    let mut result = check_health(client, url).await;
+    let mut retries = 0;
+
+    while retries < MAX_RETRIES && !result.success && is_retryable(&result) {
+        let backoff = INITIAL_BACKOFF * 2u32.pow(retries);
+        tokio::time::sleep(backoff).await;
+        retries += 1;
+        result = check_health(client, url).await;
+    }
+
+    result
 }
 
 async fn check_and_notify(
@@ -343,7 +363,7 @@ async fn check_and_notify(
 ) -> Result<HealthResult, Box<dyn std::error::Error + Send + Sync>> {
     METRICS.increment_uptime_check();
 
-    let health_result = check_health(client, &health_url.url).await;
+    let health_result = check_health_with_retry(client, &health_url.url).await;
     let previous_status_code = health_url.status_code;
 
     if let Err(e) = update_health_url_status(pool, health_url.id, health_result.status_code as i32)
