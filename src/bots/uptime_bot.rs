@@ -77,6 +77,7 @@ async fn command_handler(
     };
 
     let thread_id = msg.thread_id;
+    let chat_title = msg.chat.title().map(|t| t.to_string());
     match command {
         Command::Start => {
             handle_new_chat_and_start_command(
@@ -86,6 +87,7 @@ async fn command_handler(
                     chat_id: msg.chat.id.0,
                     thread_id,
                     inviter_username,
+                    chat_title,
                 },
             )
             .await?
@@ -673,6 +675,7 @@ async fn chat_member_handler(
 ) -> ResponseResult<()> {
     let chat_id = update.chat.id.0;
     let bot_name = "Uptime";
+    let chat_title = update.chat.title().map(|t| t.to_string());
 
     tracing::info!(
         "Received chat member update from {}: {:#?} {:#?}",
@@ -692,6 +695,7 @@ async fn chat_member_handler(
                 chat_id,
                 thread_id: None,
                 inviter_username: update.from.username,
+                chat_title,
             },
         )
         .await?
@@ -705,7 +709,7 @@ async fn chat_member_handler(
         tracing::info!("Bot removed from chat {}", chat_id);
         METRICS.increment_churn();
 
-        if let Err(e) = record_churn_event(&pool, chat_id, bot_name) {
+        if let Err(e) = record_churn_event(&pool, chat_id, bot_name, chat_title.as_deref()) {
             tracing::warn!("Failed to record churn event: {:?}", e);
         }
 
@@ -807,6 +811,7 @@ async fn handle_new_chat_and_start_command(
         chat_id,
         thread_id,
         inviter_username,
+        chat_title,
     } = start_command;
     let bot_name = "Uptime";
 
@@ -904,9 +909,13 @@ async fn handle_new_chat_and_start_command(
     if existing_chat.is_none() {
         METRICS.increment_new_chat();
 
-        if let Err(e) =
-            record_new_chat_event(pool, chat_id, bot_name, Some(inviter_username_str.as_str()))
-        {
+        if let Err(e) = record_new_chat_event(
+            pool,
+            chat_id,
+            bot_name,
+            Some(inviter_username_str.as_str()),
+            chat_title.as_deref(),
+        ) {
             tracing::warn!("Failed to record new chat event: {:?}", e);
         }
 

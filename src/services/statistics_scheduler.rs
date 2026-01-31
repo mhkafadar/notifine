@@ -152,13 +152,23 @@ fn build_chat_insights(events: &[ChatEvent]) -> String {
             result.push_str(&format!("{} {}: {}\n", prefix, bot_type, events.len()));
 
             for event in events {
-                let username = event.inviter_username.as_deref().unwrap_or("unknown");
+                let display_name = event
+                    .chat_title
+                    .as_deref()
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|| {
+                        event
+                            .inviter_username
+                            .as_deref()
+                            .map(|u| format!("@{}", u))
+                            .unwrap_or_else(|| "unknown".to_string())
+                    });
                 let status = if event.is_cross_bot_user {
                     format!("cross-bot: {}", event.other_bots.as_deref().unwrap_or(""))
                 } else {
                     "newcomer".to_string()
                 };
-                result.push_str(&format!("{}• @{} ({})\n", line_prefix, username, status));
+                result.push_str(&format!("{}• {} ({})\n", line_prefix, display_name, status));
             }
         }
         result.push('\n');
@@ -186,15 +196,17 @@ fn build_chat_insights(events: &[ChatEvent]) -> String {
             result.push_str(&format!("{} {}: {}\n", prefix, bot_type, events.len()));
 
             for event in events {
+                let display_name = event
+                    .chat_title
+                    .as_deref()
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|| format!("chat:{}", event.telegram_chat_id));
                 let status = if event.is_cross_bot_user {
                     format!("still has: {}", event.other_bots.as_deref().unwrap_or(""))
                 } else {
                     "fully churned".to_string()
                 };
-                result.push_str(&format!(
-                    "{}• chat:{} ({})\n",
-                    line_prefix, event.telegram_chat_id, status
-                ));
+                result.push_str(&format!("{}• {} ({})\n", line_prefix, display_name, status));
             }
         }
         result.push('\n');

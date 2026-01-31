@@ -5,6 +5,7 @@ use notifine::db::{DbError, DbPool};
 use notifine::models::{ChatEvent, NewChatEvent};
 use notifine::schema::{chat_bot_subscriptions, chat_events};
 
+#[allow(clippy::too_many_arguments)]
 pub fn record_chat_event(
     pool: &DbPool,
     telegram_chat_id: i64,
@@ -13,6 +14,7 @@ pub fn record_chat_event(
     inviter_username: Option<&str>,
     is_cross_bot_user: bool,
     other_bots: Option<&str>,
+    chat_title: Option<&str>,
 ) -> Result<ChatEvent, DbError> {
     let conn = &mut pool.get()?;
 
@@ -23,6 +25,7 @@ pub fn record_chat_event(
         inviter_username,
         is_cross_bot_user,
         other_bots,
+        chat_title,
     };
 
     Ok(diesel::insert_into(chat_events::table)
@@ -92,6 +95,7 @@ pub fn record_new_chat_event(
     telegram_chat_id: i64,
     bot_type: &str,
     inviter_username: Option<&str>,
+    chat_title: Option<&str>,
 ) -> Result<ChatEvent, DbError> {
     let other_bots = get_other_bots_for_chat(pool, telegram_chat_id, bot_type)?;
     let is_cross_bot_user = !other_bots.is_empty();
@@ -109,6 +113,7 @@ pub fn record_new_chat_event(
         inviter_username,
         is_cross_bot_user,
         other_bots_str.as_deref(),
+        chat_title,
     )
 }
 
@@ -116,6 +121,7 @@ pub fn record_churn_event(
     pool: &DbPool,
     telegram_chat_id: i64,
     bot_type: &str,
+    chat_title: Option<&str>,
 ) -> Result<ChatEvent, DbError> {
     let remaining_bots = get_remaining_bots_for_chat(pool, telegram_chat_id)?;
     let has_remaining_bots = !remaining_bots.is_empty();
@@ -133,5 +139,6 @@ pub fn record_churn_event(
         None,
         has_remaining_bots,
         remaining_bots_str.as_deref(),
+        chat_title,
     )
 }

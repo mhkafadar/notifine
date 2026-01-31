@@ -39,6 +39,7 @@ pub struct StartCommand {
     pub chat_id: i64,
     pub thread_id: Option<i32>,
     pub inviter_username: Option<String>,
+    pub chat_title: Option<String>,
 }
 
 pub struct TelegramMessage {
@@ -101,11 +102,13 @@ impl BotService {
         };
 
         let thread_id = msg.thread_id;
+        let chat_title = msg.chat.title().map(|t| t.to_string());
 
         self.handle_new_chat_and_start_command(StartCommand {
             chat_id: msg.chat.id.0,
             thread_id,
             inviter_username,
+            chat_title,
         })
         .await?;
 
@@ -120,6 +123,7 @@ impl BotService {
             chat_id,
             thread_id,
             inviter_username,
+            chat_title,
         } = start_command;
         let bot_name = &self.config.bot_name;
 
@@ -201,6 +205,7 @@ impl BotService {
                 chat_id,
                 bot_name,
                 Some(inviter_username_str.as_str()),
+                chat_title.as_deref(),
             ) {
                 tracing::warn!("Failed to record new chat event: {:?}", e);
             }
@@ -222,6 +227,7 @@ impl BotService {
     async fn handle_my_chat_member_update(&self, update: ChatMemberUpdated) -> ResponseResult<()> {
         let chat_id = update.chat.id.0;
         let bot_name = &self.config.bot_name;
+        let chat_title = update.chat.title().map(|t| t.to_string());
 
         tracing::info!(
             "Received chat member update from {}: {:#?} {:#?}",
@@ -238,6 +244,7 @@ impl BotService {
                 chat_id,
                 thread_id: None,
                 inviter_username: update.from.username,
+                chat_title,
             })
             .await?
         } else if matches!(
@@ -250,7 +257,8 @@ impl BotService {
             tracing::info!("Bot removed from chat {}", chat_id);
             METRICS.increment_churn();
 
-            if let Err(e) = record_churn_event(&self.pool, chat_id, bot_name) {
+            if let Err(e) = record_churn_event(&self.pool, chat_id, bot_name, chat_title.as_deref())
+            {
                 tracing::warn!("Failed to record churn event: {:?}", e);
             }
 

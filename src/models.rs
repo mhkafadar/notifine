@@ -273,6 +273,7 @@ pub struct ChatEvent {
     pub is_cross_bot_user: bool,
     pub other_bots: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub chat_title: Option<String>,
 }
 
 #[derive(Insertable)]
@@ -285,4 +286,5 @@ pub struct NewChatEvent<'a> {
     pub inviter_username: Option<&'a str>,
     pub is_cross_bot_user: bool,
     pub other_bots: Option<&'a str>,
+    pub chat_title: Option<&'a str>,
 }

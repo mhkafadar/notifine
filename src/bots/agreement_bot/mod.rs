@@ -2,7 +2,7 @@ use notifine::db::DbPool;
 use teloxide::dispatching::{Dispatcher, UpdateFilterExt};
 use teloxide::dptree;
 use teloxide::prelude::*;
-use teloxide::types::CallbackQuery;
+use teloxide::types::{CallbackQuery, ChatMemberUpdated};
 
 mod flows;
 mod handlers;
@@ -10,7 +10,7 @@ mod keyboards;
 mod types;
 mod utils;
 
-use handlers::{callback_handler, command_handler, message_handler, Command};
+use handlers::{callback_handler, chat_member_handler, command_handler, message_handler, Command};
 
 pub async fn run_bot(pool: DbPool, token: String, admin_chat_id: Option<i64>) {
     tracing::info!("Starting Agreement bot...");
@@ -41,6 +41,13 @@ pub async fn run_bot(pool: DbPool, token: String, admin_chat_id: Option<i64>) {
             move |bot: Bot, q: CallbackQuery| {
                 let pool = pool.clone();
                 async move { callback_handler(bot, q, pool).await }
+            }
+        }))
+        .branch(Update::filter_my_chat_member().endpoint({
+            let pool = pool.clone();
+            move |bot: Bot, update: ChatMemberUpdated| {
+                let pool = pool.clone();
+                async move { chat_member_handler(bot, update, pool).await }
             }
         }));
 

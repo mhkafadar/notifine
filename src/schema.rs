@@ -14,6 +14,8 @@ diesel::table! {
         #[max_length = 255]
         other_bots -> Nullable<Varchar>,
         created_at -> Timestamptz,
+        #[max_length = 255]
+        chat_title -> Nullable<Varchar>,
     }
 }
 
