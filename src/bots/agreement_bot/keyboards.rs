@@ -128,6 +128,31 @@ pub fn build_currency_keyboard() -> InlineKeyboardMarkup {
     ])
 }
 
+pub fn build_contract_duration_keyboard(language: &str) -> InlineKeyboardMarkup {
+    InlineKeyboardMarkup::new(vec![
+        vec![
+            InlineKeyboardButton::callback(
+                t(language, "agreement.rent.contract_duration.1_year"),
+                "rent:duration:1",
+            ),
+            InlineKeyboardButton::callback(
+                t(language, "agreement.rent.contract_duration.2_years"),
+                "rent:duration:2",
+            ),
+        ],
+        vec![
+            InlineKeyboardButton::callback(
+                t(language, "agreement.rent.contract_duration.3_years"),
+                "rent:duration:3",
+            ),
+            InlineKeyboardButton::callback(
+                t(language, "agreement.rent.contract_duration.5_years"),
+                "rent:duration:5",
+            ),
+        ],
+    ])
+}
+
 pub fn build_due_day_keyboard() -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
     for row_start in (1..=31).step_by(7) {

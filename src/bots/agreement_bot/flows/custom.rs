@@ -674,6 +674,7 @@ async fn save_custom_agreement(
         description: draft.description.as_deref(),
         has_ten_year_reminder: false,
         has_five_year_reminder: false,
+        contract_duration_years: None,
     };
 
     let agreement = match create_agreement(pool, new_agreement) {

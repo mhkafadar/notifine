@@ -132,6 +132,7 @@ diesel::table! {
         updated_at -> Timestamptz,
         has_ten_year_reminder -> Bool,
         has_five_year_reminder -> Bool,
+        contract_duration_years -> Nullable<Int4>,
     }
 }
 

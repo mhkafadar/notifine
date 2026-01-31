@@ -19,6 +19,7 @@ pub mod states {
     pub const RENT_TITLE: &str = "rent_title";
     pub const RENT_ROLE: &str = "rent_role";
     pub const RENT_START_DATE: &str = "rent_start_date";
+    pub const RENT_CONTRACT_DURATION: &str = "rent_contract_duration";
     pub const RENT_AMOUNT: &str = "rent_amount";
     pub const RENT_CURRENCY: &str = "rent_currency";
     pub const RENT_DUE_DAY: &str = "rent_due_day";
@@ -45,6 +46,7 @@ pub struct RentDraft {
     pub title: Option<String>,
     pub user_role: Option<String>,
     pub start_date: Option<String>,
+    pub contract_duration: Option<i32>,
     pub currency: Option<String>,
     pub rent_amount: Option<String>,
     pub due_day: Option<i32>,

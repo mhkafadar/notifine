@@ -190,6 +190,7 @@ pub struct Agreement {
     pub updated_at: DateTime<Utc>,
     pub has_ten_year_reminder: bool,
     pub has_five_year_reminder: bool,
+    pub contract_duration_years: Option<i32>,
 }
 
 #[derive(Insertable)]
@@ -211,6 +212,7 @@ pub struct NewAgreement<'a> {
     pub description: Option<&'a str>,
     pub has_ten_year_reminder: bool,
     pub has_five_year_reminder: bool,
+    pub contract_duration_years: Option<i32>,
 }
 
 #[derive(AsChangeset, Default)]
@@ -226,6 +228,7 @@ pub struct UpdateAgreement {
     pub description: Option<Option<String>>,
     pub has_ten_year_reminder: Option<bool>,
     pub has_five_year_reminder: Option<bool>,
+    pub contract_duration_years: Option<Option<i32>>,
 }
 
 #[derive(Debug, Queryable, Identifiable, Selectable, Associations)]

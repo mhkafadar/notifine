@@ -90,28 +90,53 @@
       "step3_start_date": {
         "prompt": "📅 Sözleşme ne zaman başlıyor?\n\nBir tarih seçin veya manuel girin (GG.AA.YYYY):"
       },
-      "step4_currency": {
+      "step4_contract_duration": {
+        "prompt": "📋 Sözleşme süresi kaç yıl?\n\nBu bilgi 10 yıllık tahliye süresi hesaplaması için gereklidir."
+      },
+      "contract_duration": {
+        "1_year": "1 Yıl",
+        "2_years": "2 Yıl",
+        "3_years": "3 Yıl",
+        "5_years": "5 Yıl"
+      },
+      "step5_currency": {
         "prompt": "💱 Para birimini seçin:"
       },
-      "step5_amount": {
+      "step6_amount": {
         "prompt": "💰 Aylık kira tutarı nedir?"
       },
-      "step6_due_day": {
+      "step7_due_day": {
         "prompt": "📅 Kira hangi gün ödeniyor?\n\nBir gün seçin (1-31):",
         "late_day_note": "ℹ️ Not: Şubat ve 30 günlük aylarda hatırlatma ayın son gününde gönderilecektir."
       },
-      "step7_monthly_reminder": {
+      "step8_monthly_reminder": {
         "prompt": "🔔 Aylık ödeme hatırlatması ister misiniz?\n\nÖdeme gününde her zaman hatırlatma alacaksınız. Bu seçenek ekstra erken hatırlatma ekler."
       },
-      "step8_pre_reminder": {
+      "step9_pre_reminder": {
         "prompt": "⏰ Ödeme gününden kaç gün önce ekstra hatırlatma istersiniz?",
         "1_day_before": "1 gün önce",
         "3_days_before": "3 gün önce",
         "1_week_before": "1 hafta önce",
         "no_extra": "Ekstra hatırlatma istemiyorum"
       },
-      "step9_yearly_increase": {
+      "step10_yearly_increase": {
         "prompt": "📈 Yıllık kira artış hatırlatması ister misiniz?\n\nYıllık kira artış döneminiz yaklaştığında bildirim alırsınız."
+      },
+      "step10_summary": {
+        "title": "📋 Sözleşme Özeti",
+        "agreement_name": "İsim: {}",
+        "role": "Rol: {}",
+        "role_tenant": "Kiracı",
+        "role_landlord": "Ev sahibi",
+        "start_date": "Başlangıç tarihi: {}",
+        "contract_duration": "Sözleşme süresi: {} yıl",
+        "amount": "Aylık kira: {} {}",
+        "due_day": "Ödeme günü: Her ayın {}'i",
+        "monthly_reminder": "Aylık hatırlatma: {}",
+        "yearly_increase": "Yıllık artış hatırlatması: {}",
+        "enabled": "Açık",
+        "disabled": "Kapalı",
+        "confirm_prompt": "Bu bilgiler doğru mu?"
       },
       "step4_amount": {
         "prompt": "💰 Aylık kira tutarı nedir?",
