@@ -13,7 +13,18 @@
     "confirm_button": "✅ Onayla",
     "skip_button": "Atla",
     "continue_button": "Devam",
-    "step_progress": "Adım {}/{}"
+    "step_progress": "Adım {}/{}",
+    "selected": "✅ Seçildi: {}",
+    "selected_with_context": {
+      "role": "✅ Rol: {}",
+      "duration": "✅ Sözleşme süresi: {}",
+      "currency": "✅ Para birimi: {}",
+      "monthly_reminder": "✅ Aylık ödeme hatırlatması: {}",
+      "pre_reminder": "✅ Ön hatırlatma: {}",
+      "yearly_increase": "✅ Yıllık artış hatırlatması: {}",
+      "enabled": "Açık",
+      "disabled": "Kapalı"
+    }
   },
   "agreement": {
     "welcome": {
@@ -33,16 +44,19 @@
       "title": "Ne tür bir sözleşme eklemek istersiniz?",
       "rent_button": "🏠 Konut Kirası",
       "custom_button": "📝 Özel Anlaşma",
-      "coming_soon": "Yakında eklenecek!"
+      "coming_soon": "Yakında eklenecek!",
+      "selected_rent": "✅ Seçildi: Konut Kirası",
+      "selected_custom": "✅ Seçildi: Özel Anlaşma"
     },
     "help": {
       "title": "📚 Komutlar",
-      "content": "Oluşturma:\n/start - Yeni sözleşme oluştur\n\nGörüntüleme:\n/today - Bugünkü hatırlatmalar\n/upcoming - Önümüzdeki 7 gün\n/overdue - Gecikmiş hatırlatmalar\n\nYönetim:\n/list - Tüm sözleşmeleri listele\n/view - Sözleşme detayını gör\n/edit - Sözleşme düzenle\n/delete - Sözleşme sil\n/search - Sözleşme ve hatırlatma ara\n\nAyarlar:\n/settings - Tüm ayarlar\n/language - Dil değiştir (TR/EN)\n/timezone - Saat dilimi değiştir\n/help - Bu yardım mesajı\n\nİptal:\n/cancel - Aktif işlemi iptal et"
+      "content": "Oluşturma:\n/start - Yeni sözleşme oluştur\n\nGörüntüleme:\n/today - Bugünkü hatırlatmalar (geliştiriliyor)\n/upcoming - Önümüzdeki 7 gün (geliştiriliyor)\n/overdue - Gecikmiş hatırlatmalar (geliştiriliyor)\n\nYönetim:\n/list - Tüm sözleşmeleri listele\n/search - Sözleşme ara (geliştiriliyor)\n\nAyarlar:\n/settings - Tüm ayarlar\n/language - Dil değiştir (TR/EN)\n/timezone - Saat dilimi değiştir\n/help - Bu yardım mesajı\n\nİptal:\n/cancel - Aktif işlemi iptal et"
     },
     "language": {
       "title": "🌐 Dil Seçin",
       "current": "Mevcut dil: {}",
       "changed": "Dil Türkçe olarak değiştirildi.",
+      "invalid": "Geçersiz dil. Lütfen /lang en veya /lang tr kullanın",
       "en_button": "🇬🇧 English",
       "tr_button": "🇹🇷 Türkçe"
     },
@@ -71,13 +85,6 @@
       "reminders_failed": "⚠️ Sözleşme oluşturuldu ancak hatırlatıcılar kaydedilemedi. Lütfen tekrar deneyin veya destek ile iletişime geçin."
     },
     "rent": {
-      "scope_check": {
-        "title": "Bu özellik sadece konut (mesken) kiraları için geçerlidir.",
-        "question": "Kiralanan yer konut mu?",
-        "yes_button": "✅ Evet, konut",
-        "no_button": "❌ Hayır, işyeri",
-        "commercial_notice": "İşyeri kiraları için destek yakında eklenecektir."
-      },
       "step1_title": {
         "prompt": "📝 Bu sözleşme için bir isim girin:\n\nAyırt edici bir isim girmenizi öneririz. Örnek: Kadıköy Dairesi, Yazlık Ev",
         "helper": "En fazla 50 karakter"
@@ -97,7 +104,9 @@
         "1_year": "1 Yıl",
         "2_years": "2 Yıl",
         "3_years": "3 Yıl",
-        "5_years": "5 Yıl"
+        "other": "Diğer",
+        "custom_prompt": "Sözleşme süresini yıl olarak girin (1-30):",
+        "invalid_duration": "Lütfen 1-30 arası bir sayı girin."
       },
       "step5_currency": {
         "prompt": "💱 Para birimini seçin:"
@@ -107,6 +116,7 @@
       },
       "step7_due_day": {
         "prompt": "📅 Kira hangi gün ödeniyor?\n\nBir gün seçin (1-31):",
+        "prompt_text": "📅 Kira hangi gün ödeniyor?\n\nGünü yazın (1-31):",
         "late_day_note": "ℹ️ Not: Şubat ve 30 günlük aylarda hatırlatma ayın son gününde gönderilecektir."
       },
       "step8_monthly_reminder": {
@@ -117,7 +127,7 @@
         "1_day_before": "1 gün önce",
         "3_days_before": "3 gün önce",
         "1_week_before": "1 hafta önce",
-        "no_extra": "Ekstra hatırlatma istemiyorum"
+        "no_extra": "Hayır"
       },
       "step10_yearly_increase": {
         "prompt": "📈 Yıllık kira artış hatırlatması ister misiniz?\n\nYıllık kira artış döneminiz yaklaştığında bildirim alırsınız."
@@ -183,7 +193,8 @@
         "view_details": "📋 Detayları gör",
         "new_agreement": "🏠 Yeni sözleşme",
         "payment_title": "Kira ödemesi",
-        "collection_title": "Kira alacağı"
+        "collection_title": "Kira alacağı",
+        "list_hint": "Sözleşmelerinizi görüntülemek için /list yazın."
       },
       "past_date_warning": {
         "title": "ℹ️ Bu tarih geçmişte.",
@@ -197,13 +208,16 @@
         "tenant_title": "Kiranız yenilemede artabilir. Yasal TÜFE sınırını kontrol edin."
       },
       "ten_year": {
-        "6_months_title": "10 yıllık uzatma döneminiz sona eriyor",
-        "4_months_title": "Feshetmek istiyorsanız {} tarihine kadar fesih bildirimi göndermelisiniz",
-        "3_months_title": "ACİL: 10 yıllık fesih bildirimi için son tarih yaklaşıyor"
+        "landlord_6_months_title": "10 yıllık kira dönemi sona eriyor. Bu tarihten itibaren 3 ay önceden bildirmek şartıyla sözleşmeyi sebepsiz feshedebilirsiniz.",
+        "tenant_6_months_title": "10 yıllık kira dönemi sona eriyor. Bu tarihten itibaren kiraya veren, sebep göstermeksizin 3 ay önceden bildirerek sözleşmeyi feshedebilir.",
+        "landlord_4_months_title": "Feshetmek istiyorsanız {} tarihine kadar fesih bildirimi göndermelisiniz.",
+        "tenant_4_months_title": "Kiraya veren feshetmek isterse {} tarihine kadar bildirim göndermesi gerekir.",
+        "landlord_3_months_title": "ACİL: Sebepsiz fesih için bildirim son tarihi yaklaşıyor.",
+        "tenant_3_months_title": "ACİL: Kiraya verenin fesih bildirimi için son tarih yaklaşıyor."
       },
       "five_year": {
-        "landlord_title": "{} yıllık kira tespiti dönemi yaklaşıyor. Mahkemeden rayiç bedel tespiti talep edebilirsiniz.",
-        "tenant_title": "{} yıllık kira tespiti dönemi yaklaşıyor. Kiraya veren mahkemeden tespit isteyebilir.",
+        "landlord_title": "{} yıllık kira tespiti dönemi. Mahkemeden rayiç bedel tespiti talep edebilirsiniz - kira piyasa değerine uyarlanabilir.",
+        "tenant_title": "{} yıllık kira tespiti dönemi. Kiraya veren mahkemeden rayiç bedel tespiti isteyebilir - kiranız TÜFE sınırı üzerinde artabilir.",
         "notice_deadline_title": "{} yıllık kira bildirimi için son tarih: {} gün kaldı"
       }
     },
@@ -234,15 +248,17 @@
       },
       "success": {
         "title": "✅ Sözleşme oluşturuldu!",
-        "reminder_count": "{} hatırlatıcı eklendi"
+        "reminder_count": "{} hatırlatıcı eklendi",
+        "list_hint": "Sözleşmelerinizi görüntülemek için /list yazın."
       }
     },
-    "calendar": {
-      "select_month": "Ay seçin:",
-      "select_year": "Yıl seçin:",
-      "prev_month": "◀️",
-      "next_month": "▶️",
-      "today": "Bugün"
+    "date_picker": {
+      "enter_year": "📅 Yıl girin (örn: {}):",
+      "enter_month": "📅 Ay girin (1-12):",
+      "enter_day": "📅 Gün girin (1-{}):",
+      "invalid_year": "❌ Geçersiz yıl. Lütfen geçerli bir yıl girin (örn: 2026).",
+      "invalid_month": "❌ Geçersiz ay. Lütfen 1-12 arası girin.",
+      "invalid_day": "❌ Geçersiz gün. Lütfen 1-{} arası girin."
     },
     "validation": {
       "title_required": "❌ Başlık zorunludur.",
@@ -285,6 +301,7 @@
       "field_role_tenant": "Kiracı",
       "field_role_landlord": "Ev Sahibi",
       "field_start_date": "Başlangıç Tarihi",
+      "field_contract_duration": "Sözleşme Süresi",
       "field_amount": "Tutar",
       "field_due_day": "Ödeme Günü",
       "field_monthly_reminder": "Aylık Hatırlatıcı",
@@ -303,7 +320,23 @@
       "back_button": "◀️ Listeye Dön",
       "enabled": "Açık",
       "disabled": "Kapalı",
-      "day_of_month": "Ayın {}. günü"
+      "day_of_month": "Ayın {}. günü",
+      "pre_reminder_note": "({} gün önce hatırlatma)",
+      "reminder_due_day_only": "(Ödeme günü)",
+      "reminder_with_pre": "(Ödeme günü + {} gün önce)",
+      "reminder_same_day": "Aynı gün",
+      "months_before": "{} ay önce",
+      "days_before": "{} gün önce",
+      "yearly_summary": "Her yıl ({})",
+      "first_last_dates": "İlk: {}, Son: {}",
+      "notification_count": "olmak üzere toplam {} bildirim alacaksınız.",
+      "five_year_milestone": "{}. yıl: {}",
+      "ten_year_date": "Tarih: {}",
+      "contract_duration_years": "{} yıl",
+      "five_year_view_tenant": "Kiraya veren mahkemeden rayiç bedel tespiti isteyebilir - kiranız TÜFE sınırı üzerinde artabilir.",
+      "five_year_view_landlord": "Mahkemeden rayiç bedel tespiti talep edebilirsiniz - kira piyasa değerine uyarlanabilir.",
+      "ten_year_view_tenant": "10 yıllık kira dönemi sona eriyor. Bu tarihten itibaren kiraya veren, sebep göstermeksizin 3 ay önceden bildirerek sözleşmeyi feshedebilir.",
+      "ten_year_view_landlord": "10 yıllık kira dönemi sona eriyor. Bu tarihten itibaren 3 ay önceden bildirmek şartıyla sözleşmeyi sebepsiz feshedebilirsiniz."
     },
     "delete": {
       "confirm_title": "🗑️ Sözleşmeyi Sil?",

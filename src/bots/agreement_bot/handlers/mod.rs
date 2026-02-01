@@ -17,7 +17,7 @@ use teloxide::prelude::*;
 use teloxide::types::{ChatMemberKind, ChatMemberUpdated};
 
 pub use callbacks::callback_handler;
-pub use commands::{command_handler, Command};
+pub use commands::{command_handler, perform_onboarding, Command};
 pub use inputs::message_handler;
 pub use menu::{handle_flow_cancel, handle_menu_select};
 pub use reminders::handle_reminder_callback;

@@ -15,11 +15,13 @@ pub fn sanitize_input(text: &str) -> String {
 }
 
 pub mod states {
-    pub const RENT_SCOPE_CHECK: &str = "rent_scope_check";
     pub const RENT_TITLE: &str = "rent_title";
     pub const RENT_ROLE: &str = "rent_role";
-    pub const RENT_START_DATE: &str = "rent_start_date";
+    pub const RENT_START_YEAR: &str = "rent_start_year";
+    pub const RENT_START_MONTH: &str = "rent_start_month";
+    pub const RENT_START_DAY: &str = "rent_start_day";
     pub const RENT_CONTRACT_DURATION: &str = "rent_contract_duration";
+    pub const RENT_CONTRACT_DURATION_CUSTOM: &str = "rent_contract_duration_custom";
     pub const RENT_AMOUNT: &str = "rent_amount";
     pub const RENT_CURRENCY: &str = "rent_currency";
     pub const RENT_DUE_DAY: &str = "rent_due_day";
@@ -30,7 +32,9 @@ pub mod states {
     pub const CUSTOM_TITLE: &str = "custom_title";
     pub const CUSTOM_DESCRIPTION: &str = "custom_description";
     pub const CUSTOM_REMINDER_TITLE: &str = "custom_reminder_title";
-    pub const CUSTOM_REMINDER_DATE: &str = "custom_reminder_date";
+    pub const CUSTOM_REMINDER_YEAR: &str = "custom_reminder_year";
+    pub const CUSTOM_REMINDER_MONTH: &str = "custom_reminder_month";
+    pub const CUSTOM_REMINDER_DAY: &str = "custom_reminder_day";
     pub const CUSTOM_REMINDER_AMOUNT: &str = "custom_reminder_amount";
     pub const CUSTOM_REMINDER_TIMING: &str = "custom_reminder_timing";
     pub const CUSTOM_REMINDER_LIST: &str = "custom_reminder_list";
@@ -46,6 +50,8 @@ pub struct RentDraft {
     pub title: Option<String>,
     pub user_role: Option<String>,
     pub start_date: Option<String>,
+    pub start_year: Option<i32>,
+    pub start_month: Option<u32>,
     pub contract_duration: Option<i32>,
     pub currency: Option<String>,
     pub rent_amount: Option<String>,
@@ -67,6 +73,8 @@ pub struct CustomDraft {
 pub struct CustomReminderDraft {
     pub title: Option<String>,
     pub date: Option<String>,
+    pub year: Option<i32>,
+    pub month: Option<u32>,
     pub amount: Option<String>,
     pub timing: Option<String>,
 }

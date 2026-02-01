@@ -12,7 +12,7 @@ use notifine::i18n::{t, t_with_args};
 use notifine::models::NewAgreementUser;
 use notifine::{
     clear_conversation_state, create_agreement_user, find_agreement_user_by_telegram_id,
-    find_agreements_by_user_id,
+    find_agreements_by_user_id, update_agreement_user_language,
 };
 use teloxide::macros::BotCommands;
 use teloxide::prelude::*;
@@ -23,8 +23,7 @@ use super::super::keyboards::{
 };
 use super::super::types::{DEFAULT_LANGUAGE, DEFAULT_TIMEZONE};
 use super::super::utils::{
-    detect_language_from_message, get_user_language, send_message_with_keyboard,
-    send_telegram_message,
+    detect_language, get_user_language, send_message_with_keyboard, send_telegram_message,
 };
 
 #[derive(BotCommands, Clone)]
@@ -39,6 +38,8 @@ pub enum Command {
     Help,
     #[command(description = "Cancel current operation")]
     Cancel,
+    #[command(description = "İşlemi iptal et")]
+    Iptal,
     #[command(description = "View your settings")]
     Settings,
     #[command(description = "Change language")]
@@ -47,6 +48,8 @@ pub enum Command {
     Timezone,
     #[command(description = "List all agreements")]
     List,
+    #[command(description = "Set language directly. Usage: /lang <en|tr>")]
+    Lang { language: String },
     #[command(
         description = "Send a broadcast message to all users (admin only). Usage: /broadcast [--discover] <message>"
     )]
@@ -88,11 +91,16 @@ pub async fn command_handler(
     match command {
         Command::Start => handle_start(&pool, &bot, &msg, user_id, chat_id, thread_id).await?,
         Command::Help => handle_help(&pool, &bot, user_id, chat_id, thread_id).await?,
-        Command::Cancel => handle_cancel(&pool, &bot, user_id, chat_id, thread_id).await?,
+        Command::Cancel | Command::Iptal => {
+            handle_cancel(&pool, &bot, user_id, chat_id, thread_id).await?
+        }
         Command::Settings => handle_settings(&pool, &bot, user_id, chat_id, thread_id).await?,
         Command::Language => handle_language(&pool, &bot, user_id, chat_id, thread_id).await?,
         Command::Timezone => handle_timezone(&pool, &bot, user_id, chat_id, thread_id).await?,
         Command::List => handle_list_agreements(&pool, &bot, user_id, chat_id, thread_id).await?,
+        Command::Lang { language } => {
+            handle_lang(&pool, &bot, user_id, chat_id, thread_id, &language).await?
+        }
         Command::Broadcast => handle_broadcast(&bot, &msg, &pool, admin_chat_id).await?,
         Command::Broadcasttest => handle_broadcast_test(&bot, &msg, &pool, admin_chat_id).await?,
         Command::Broadcaststatus => {
@@ -158,61 +166,8 @@ async fn handle_start(
             }
         }
         None => {
-            let language = detect_language_from_message(msg);
-            let user_info = match msg.from() {
-                Some(u) => u,
-                None => return Ok(()),
-            };
-
-            let new_user = NewAgreementUser {
-                telegram_user_id: user_id,
-                telegram_chat_id: chat_id,
-                username: user_info.username.as_deref(),
-                first_name: Some(&user_info.first_name),
-                last_name: user_info.last_name.as_deref(),
-                language: &language,
-                timezone: DEFAULT_TIMEZONE,
-            };
-
-            if let Err(e) = create_agreement_user(pool, new_user) {
-                tracing::error!("Failed to create agreement user: {:?}", e);
-                METRICS.increment_errors();
-                ALERTS
-                    .send_alert(
-                        bot,
-                        Severity::Error,
-                        "Database",
-                        &format!("Failed to create agreement user: {}", e),
-                    )
-                    .await;
-                send_telegram_message(
-                    bot,
-                    TelegramMessage {
-                        chat_id,
-                        thread_id,
-                        message: t(&language, "agreement.errors.database_error"),
-                    },
-                )
-                .await?;
-                return Ok(());
-            }
-
-            let welcome_message = format!(
-                "{}\n\n{}",
-                t(&language, "agreement.welcome.title"),
-                t(&language, "agreement.welcome.description")
-            );
-            send_telegram_message(
-                bot,
-                TelegramMessage {
-                    chat_id,
-                    thread_id,
-                    message: welcome_message,
-                },
-            )
-            .await?;
-
-            send_disclaimer(bot, chat_id, thread_id, &language).await?;
+            let language = detect_language(msg);
+            perform_onboarding(pool, bot, msg, user_id, chat_id, thread_id, &language).await?;
         }
     }
 
@@ -238,6 +193,169 @@ async fn send_disclaimer(
 
     let keyboard = build_disclaimer_keyboard(language);
     send_message_with_keyboard(bot, chat_id, thread_id, &disclaimer_message, keyboard).await?;
+
+    Ok(())
+}
+
+pub async fn perform_onboarding(
+    pool: &DbPool,
+    bot: &Bot,
+    msg: &Message,
+    user_id: i64,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    language: &str,
+) -> ResponseResult<()> {
+    let user_info = match msg.from() {
+        Some(u) => u,
+        None => return Ok(()),
+    };
+
+    let new_user = NewAgreementUser {
+        telegram_user_id: user_id,
+        telegram_chat_id: chat_id,
+        username: user_info.username.as_deref(),
+        first_name: Some(&user_info.first_name),
+        last_name: user_info.last_name.as_deref(),
+        language,
+        timezone: DEFAULT_TIMEZONE,
+    };
+
+    if let Err(e) = create_agreement_user(pool, new_user) {
+        tracing::error!("Failed to create agreement user: {:?}", e);
+        METRICS.increment_errors();
+        ALERTS
+            .send_alert(
+                bot,
+                Severity::Error,
+                "Database",
+                &format!("Failed to create agreement user: {}", e),
+            )
+            .await;
+        send_telegram_message(
+            bot,
+            TelegramMessage {
+                chat_id,
+                thread_id,
+                message: t(language, "agreement.errors.database_error"),
+            },
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let welcome_message = format!(
+        "{}\n\n{}",
+        t(language, "agreement.welcome.title"),
+        t(language, "agreement.welcome.description")
+    );
+    send_telegram_message(
+        bot,
+        TelegramMessage {
+            chat_id,
+            thread_id,
+            message: welcome_message,
+        },
+    )
+    .await?;
+
+    send_disclaimer(bot, chat_id, thread_id, language).await?;
+
+    if let Err(e) = upsert_chat_bot_subscription(pool, chat_id, BotType::Agreement, true) {
+        tracing::warn!("Failed to track subscription for Agreement bot: {:?}", e);
+    }
+
+    Ok(())
+}
+
+async fn handle_lang(
+    pool: &DbPool,
+    bot: &Bot,
+    user_id: i64,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    language_arg: &str,
+) -> ResponseResult<()> {
+    let existing_user = match find_agreement_user_by_telegram_id(pool, user_id) {
+        Ok(Some(u)) => u,
+        Ok(None) => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(DEFAULT_LANGUAGE, "agreement.errors.user_not_found"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+        Err(e) => {
+            tracing::error!("Database error finding user: {:?}", e);
+            METRICS.increment_errors();
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(DEFAULT_LANGUAGE, "agreement.errors.database_error"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let current_language = &existing_user.language;
+    let new_language = language_arg.trim().to_lowercase();
+
+    if new_language != "en" && new_language != "tr" {
+        send_telegram_message(
+            bot,
+            TelegramMessage {
+                chat_id,
+                thread_id,
+                message: t(current_language, "agreement.language.invalid"),
+            },
+        )
+        .await?;
+        return Ok(());
+    }
+
+    match update_agreement_user_language(pool, user_id, &new_language) {
+        Ok(_) => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(&new_language, "agreement.language.changed"),
+                },
+            )
+            .await?;
+        }
+        Err(e) => {
+            tracing::error!("Failed to update language: {:?}", e);
+            METRICS.increment_errors();
+            ALERTS
+                .send_alert(
+                    bot,
+                    Severity::Error,
+                    "Database",
+                    &format!("Failed to update user language: {}", e),
+                )
+                .await;
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(current_language, "agreement.errors.database_error"),
+                },
+            )
+            .await?;
+        }
+    }
 
     Ok(())
 }

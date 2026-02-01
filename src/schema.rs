@@ -1,78 +1,6 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    chat_events (id) {
-        id -> Int4,
-        telegram_chat_id -> Int8,
-        #[max_length = 20]
-        event_type -> Varchar,
-        #[max_length = 20]
-        bot_type -> Varchar,
-        #[max_length = 255]
-        inviter_username -> Nullable<Varchar>,
-        is_cross_bot_user -> Bool,
-        #[max_length = 255]
-        other_bots -> Nullable<Varchar>,
-        created_at -> Timestamptz,
-        #[max_length = 255]
-        chat_title -> Nullable<Varchar>,
-    }
-}
-
-diesel::table! {
-    broadcast_jobs (id) {
-        id -> Int4,
-        message -> Text,
-        #[max_length = 20]
-        status -> Varchar,
-        created_by_chat_id -> Int8,
-        total_chats -> Int4,
-        processed_count -> Int4,
-        success_count -> Int4,
-        failed_count -> Int4,
-        unreachable_count -> Int4,
-        last_processed_chat_id -> Nullable<Int8>,
-        rate_limit_per_sec -> Int4,
-        started_at -> Nullable<Timestamptz>,
-        completed_at -> Nullable<Timestamptz>,
-        error_message -> Nullable<Text>,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-        discovery_mode -> Bool,
-    }
-}
-
-diesel::table! {
-    chat_bot_subscriptions (id) {
-        id -> Int4,
-        telegram_chat_id -> Int8,
-        #[max_length = 20]
-        bot_type -> Varchar,
-        is_reachable -> Bool,
-        last_success_at -> Nullable<Timestamptz>,
-        last_failure_at -> Nullable<Timestamptz>,
-        failure_count -> Int4,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-    }
-}
-
-diesel::table! {
-    pending_deactivations (id) {
-        id -> Int4,
-        telegram_chat_id -> Int8,
-        source_broadcast_job_id -> Nullable<Int4>,
-        failed_bots -> Array<Nullable<Text>>,
-        last_error -> Nullable<Text>,
-        #[max_length = 20]
-        status -> Varchar,
-        reviewed_at -> Nullable<Timestamptz>,
-        reviewed_by_chat_id -> Nullable<Int8>,
-        created_at -> Timestamptz,
-    }
-}
-
-diesel::table! {
     agreement_conversation_states (id) {
         id -> Int4,
         telegram_user_id -> Int8,
@@ -137,6 +65,63 @@ diesel::table! {
 }
 
 diesel::table! {
+    broadcast_jobs (id) {
+        id -> Int4,
+        message -> Text,
+        #[max_length = 20]
+        status -> Varchar,
+        created_by_chat_id -> Int8,
+        total_chats -> Int4,
+        processed_count -> Int4,
+        success_count -> Int4,
+        failed_count -> Int4,
+        unreachable_count -> Int4,
+        last_processed_chat_id -> Nullable<Int8>,
+        rate_limit_per_sec -> Int4,
+        started_at -> Nullable<Timestamptz>,
+        completed_at -> Nullable<Timestamptz>,
+        error_message -> Nullable<Text>,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+        discovery_mode -> Bool,
+    }
+}
+
+diesel::table! {
+    chat_bot_subscriptions (id) {
+        id -> Int4,
+        telegram_chat_id -> Int8,
+        #[max_length = 20]
+        bot_type -> Varchar,
+        is_reachable -> Bool,
+        last_success_at -> Nullable<Timestamptz>,
+        last_failure_at -> Nullable<Timestamptz>,
+        failure_count -> Int4,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    chat_events (id) {
+        id -> Int4,
+        telegram_chat_id -> Int8,
+        #[max_length = 20]
+        event_type -> Varchar,
+        #[max_length = 20]
+        bot_type -> Varchar,
+        #[max_length = 255]
+        inviter_username -> Nullable<Varchar>,
+        is_cross_bot_user -> Bool,
+        #[max_length = 255]
+        other_bots -> Nullable<Varchar>,
+        created_at -> Timestamptz,
+        #[max_length = 255]
+        chat_title -> Nullable<Varchar>,
+    }
+}
+
+diesel::table! {
     chats (id) {
         id -> Int4,
         #[max_length = 255]
@@ -182,6 +167,21 @@ diesel::table! {
         status_code -> Int4,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    pending_deactivations (id) {
+        id -> Int4,
+        telegram_chat_id -> Int8,
+        source_broadcast_job_id -> Nullable<Int4>,
+        failed_bots -> Array<Nullable<Text>>,
+        last_error -> Nullable<Text>,
+        #[max_length = 20]
+        status -> Varchar,
+        reviewed_at -> Nullable<Timestamptz>,
+        reviewed_by_chat_id -> Nullable<Int8>,
+        created_at -> Timestamptz,
     }
 }
 

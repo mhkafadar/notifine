@@ -1,7 +1,7 @@
 use crate::bots::bot_service::TelegramMessage;
 use crate::observability::METRICS;
 use bigdecimal::BigDecimal;
-use chrono::{NaiveDate, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use notifine::db::DbPool;
 use notifine::i18n::{t, t_with_args};
 use notifine::models::{NewAgreement, NewReminder};
@@ -15,9 +15,8 @@ use teloxide::prelude::*;
 use teloxide::types::{CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup};
 
 use crate::bots::agreement_bot::keyboards::{
-    build_cancel_keyboard, build_confirm_keyboard, build_custom_calendar,
-    build_custom_currency_keyboard, build_custom_timing_keyboard, build_menu_keyboard,
-    build_reminder_list_keyboard,
+    build_confirm_keyboard, build_custom_currency_keyboard, build_custom_timing_keyboard,
+    build_menu_keyboard, build_reminder_list_keyboard, days_in_month,
 };
 use crate::bots::agreement_bot::types::{
     sanitize_input, states, CustomDraft, CustomReminderDraft, MAX_REMINDERS_PER_AGREEMENT,
@@ -95,7 +94,7 @@ pub async fn handle_custom_callback(
             &language,
             "agreement.custom.add_reminder.reminder_title_prompt",
         );
-        let keyboard = build_cancel_keyboard(&language);
+        let keyboard = InlineKeyboardMarkup::default();
         update_state(pool, user_id, states::CUSTOM_REMINDER_TITLE, &draft);
         bot.edit_message_text(msg.chat.id, msg.id, &message)
             .reply_markup(keyboard)
@@ -119,120 +118,6 @@ pub async fn handle_custom_callback(
             pool, bot, chat_id, thread_id, msg.id, user_id, &language, &draft,
         )
         .await?;
-    } else if data.starts_with("custom:cal:") {
-        handle_calendar_callback(
-            pool,
-            bot,
-            msg.chat.id,
-            msg.id,
-            user_id,
-            &language,
-            data,
-            &mut draft,
-        )
-        .await?;
-    }
-
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn handle_calendar_callback(
-    pool: &DbPool,
-    bot: &Bot,
-    chat_id: ChatId,
-    message_id: teloxide::types::MessageId,
-    user_id: i64,
-    language: &str,
-    data: &str,
-    draft: &mut CustomDraft,
-) -> ResponseResult<()> {
-    if data == "custom:cal:noop" {
-        return Ok(());
-    }
-
-    if let Some(rest) = data.strip_prefix("custom:cal:prev:") {
-        let parts: Vec<&str> = rest.split(':').collect();
-        if parts.len() == 2 {
-            if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
-                let (new_year, new_month) = if month == 1 {
-                    (year - 1, 12)
-                } else {
-                    (year, month - 1)
-                };
-                if let Some(new_date) = NaiveDate::from_ymd_opt(new_year, new_month, 1) {
-                    let keyboard = build_custom_calendar(language, new_date);
-                    let message = t(language, "agreement.custom.add_reminder.date_prompt");
-                    bot.edit_message_text(chat_id, message_id, &message)
-                        .reply_markup(keyboard)
-                        .await?;
-                }
-            }
-        }
-    } else if let Some(rest) = data.strip_prefix("custom:cal:next:") {
-        let parts: Vec<&str> = rest.split(':').collect();
-        if parts.len() == 2 {
-            if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
-                let (new_year, new_month) = if month == 12 {
-                    (year + 1, 1)
-                } else {
-                    (year, month + 1)
-                };
-                if let Some(new_date) = NaiveDate::from_ymd_opt(new_year, new_month, 1) {
-                    let keyboard = build_custom_calendar(language, new_date);
-                    let message = t(language, "agreement.custom.add_reminder.date_prompt");
-                    bot.edit_message_text(chat_id, message_id, &message)
-                        .reply_markup(keyboard)
-                        .await?;
-                }
-            }
-        }
-    } else if let Some(rest) = data.strip_prefix("custom:cal:day:") {
-        let parts: Vec<&str> = rest.split(':').collect();
-        if parts.len() == 3 {
-            if let (Ok(year), Ok(month), Ok(day)) = (
-                parts[0].parse::<i32>(),
-                parts[1].parse::<u32>(),
-                parts[2].parse::<u32>(),
-            ) {
-                if let Some(selected_naive) = NaiveDate::from_ymd_opt(year, month, day) {
-                    let today = Utc::now().date_naive();
-                    if selected_naive < today {
-                        let message = format!(
-                            "{}\n\n{}",
-                            t(language, "agreement.validation.past_date"),
-                            t(language, "agreement.custom.add_reminder.date_prompt")
-                        );
-                        let keyboard = build_custom_calendar(language, selected_naive);
-                        bot.edit_message_text(chat_id, message_id, &message)
-                            .reply_markup(keyboard)
-                            .await?;
-                        return Ok(());
-                    }
-
-                    let selected_date = format!("{:02}.{:02}.{}", day, month, year);
-                    if let Some(reminder) = draft.reminders.last_mut() {
-                        reminder.date = Some(selected_date);
-                    }
-
-                    let message = t(language, "agreement.custom.add_reminder.amount_prompt");
-                    let keyboard = InlineKeyboardMarkup::new(vec![
-                        vec![InlineKeyboardButton::callback(
-                            t(language, "common.skip_button"),
-                            "custom:skip_amount",
-                        )],
-                        vec![InlineKeyboardButton::callback(
-                            t(language, "common.cancel_button"),
-                            "flow:cancel",
-                        )],
-                    ]);
-                    update_state(pool, user_id, states::CUSTOM_REMINDER_AMOUNT, draft);
-                    bot.edit_message_text(chat_id, message_id, &message)
-                        .reply_markup(keyboard)
-                        .await?;
-                }
-            }
-        }
     }
 
     Ok(())
@@ -308,16 +193,10 @@ pub async fn handle_custom_title_input(
         t(language, "agreement.custom.step2_description.prompt")
     );
 
-    let keyboard = InlineKeyboardMarkup::new(vec![
-        vec![InlineKeyboardButton::callback(
-            t(language, "agreement.custom.step2_description.skip_button"),
-            "custom:skip_description",
-        )],
-        vec![InlineKeyboardButton::callback(
-            t(language, "common.cancel_button"),
-            "flow:cancel",
-        )],
-    ]);
+    let keyboard = InlineKeyboardMarkup::new(vec![vec![InlineKeyboardButton::callback(
+        t(language, "agreement.custom.step2_description.skip_button"),
+        "custom:skip_description",
+    )]]);
 
     update_state(pool, user_id, states::CUSTOM_DESCRIPTION, &draft);
     send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
@@ -385,7 +264,7 @@ async fn start_reminder_flow(
         )
     );
 
-    let keyboard = build_cancel_keyboard(language);
+    let keyboard = InlineKeyboardMarkup::default();
     update_state(pool, user_id, states::CUSTOM_REMINDER_TITLE, draft);
     send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
 
@@ -455,9 +334,14 @@ pub async fn handle_custom_reminder_title_input(
     };
     draft.reminders.push(new_reminder);
 
-    let message = t(language, "agreement.custom.add_reminder.date_prompt");
-    let keyboard = build_custom_calendar(language, Utc::now().date_naive());
-    update_state(pool, user_id, states::CUSTOM_REMINDER_DATE, &draft);
+    let current_year = Utc::now().year().to_string();
+    let message = t_with_args(
+        language,
+        "agreement.date_picker.enter_year",
+        &[&current_year],
+    );
+    let keyboard = InlineKeyboardMarkup::default();
+    update_state(pool, user_id, states::CUSTOM_REMINDER_YEAR, &draft);
     send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
 
     Ok(())
@@ -775,19 +659,247 @@ async fn save_custom_agreement(
     }
 
     let success_message = format!(
-        "{}\n\n{}",
+        "{}\n\n{}\n\n{}",
         t(language, "agreement.custom.success.title"),
         t_with_args(
             language,
             "agreement.custom.success.reminder_count",
             &[&reminder_count.to_string()]
-        )
+        ),
+        t(language, "agreement.custom.success.list_hint")
     );
 
     let keyboard = build_menu_keyboard(language);
     bot.edit_message_text(ChatId(chat_id), message_id, &success_message)
         .reply_markup(keyboard)
         .await?;
+
+    Ok(())
+}
+
+pub async fn handle_custom_reminder_year_input(
+    pool: &DbPool,
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    user_id: i64,
+    language: &str,
+    text: &str,
+) -> ResponseResult<()> {
+    let year_str = sanitize_input(text);
+
+    let current_year = Utc::now().year();
+    let year = match year_str.parse::<i32>() {
+        Ok(y) if y >= current_year && y <= 2100 => y,
+        _ => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.date_picker.invalid_year"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let state = get_conversation_state(pool, user_id).ok().flatten();
+    let mut draft: CustomDraft = state
+        .as_ref()
+        .and_then(|s| s.state_data.as_ref())
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .unwrap_or_default();
+
+    if let Some(reminder) = draft.reminders.last_mut() {
+        reminder.year = Some(year);
+    }
+
+    let message = t(language, "agreement.date_picker.enter_month");
+    let keyboard = InlineKeyboardMarkup::default();
+    update_state(pool, user_id, states::CUSTOM_REMINDER_MONTH, &draft);
+    send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
+
+    Ok(())
+}
+
+pub async fn handle_custom_reminder_month_input(
+    pool: &DbPool,
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    user_id: i64,
+    language: &str,
+    text: &str,
+) -> ResponseResult<()> {
+    let month_str = sanitize_input(text);
+
+    let month = match month_str.parse::<u32>() {
+        Ok(m) if (1..=12).contains(&m) => m,
+        _ => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.date_picker.invalid_month"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let state = get_conversation_state(pool, user_id).ok().flatten();
+    let mut draft: CustomDraft = state
+        .as_ref()
+        .and_then(|s| s.state_data.as_ref())
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .unwrap_or_default();
+
+    let year = draft
+        .reminders
+        .last()
+        .and_then(|r| r.year)
+        .unwrap_or(Utc::now().year());
+    let max_day = days_in_month(year, month);
+
+    if let Some(reminder) = draft.reminders.last_mut() {
+        reminder.month = Some(month);
+    }
+
+    let message = t_with_args(
+        language,
+        "agreement.date_picker.enter_day",
+        &[&max_day.to_string()],
+    );
+    let keyboard = InlineKeyboardMarkup::default();
+    update_state(pool, user_id, states::CUSTOM_REMINDER_DAY, &draft);
+    send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
+
+    Ok(())
+}
+
+pub async fn handle_custom_reminder_day_input(
+    pool: &DbPool,
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    user_id: i64,
+    language: &str,
+    text: &str,
+) -> ResponseResult<()> {
+    let day_str = sanitize_input(text);
+
+    let state = get_conversation_state(pool, user_id).ok().flatten();
+    let mut draft: CustomDraft = state
+        .as_ref()
+        .and_then(|s| s.state_data.as_ref())
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .unwrap_or_default();
+
+    let reminder = match draft.reminders.last() {
+        Some(r) => r,
+        None => {
+            tracing::error!("Reached day input handler without reminder in draft");
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.errors.database_error"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let year = match reminder.year {
+        Some(y) => y,
+        None => {
+            tracing::error!("Reached day input handler without year in reminder");
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.errors.database_error"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let month = match reminder.month {
+        Some(m) => m,
+        None => {
+            tracing::error!("Reached day input handler without month in reminder");
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.errors.database_error"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let max_day = days_in_month(year, month);
+
+    let day = match day_str.parse::<u32>() {
+        Ok(d) if d >= 1 && d <= max_day => d,
+        _ => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t_with_args(
+                        language,
+                        "agreement.date_picker.invalid_day",
+                        &[&max_day.to_string()],
+                    ),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    if let Some(selected_naive) = NaiveDate::from_ymd_opt(year, month, day) {
+        let today = Utc::now().date_naive();
+        if selected_naive < today {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.validation.past_date"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    }
+
+    if let Some(reminder) = draft.reminders.last_mut() {
+        reminder.date = Some(format!("{:02}.{:02}.{}", day, month, year));
+        reminder.year = None;
+        reminder.month = None;
+    }
+
+    let message = t(language, "agreement.custom.add_reminder.amount_prompt");
+    let keyboard = InlineKeyboardMarkup::new(vec![vec![InlineKeyboardButton::callback(
+        t(language, "common.skip_button"),
+        "custom:skip_amount",
+    )]]);
+    update_state(pool, user_id, states::CUSTOM_REMINDER_AMOUNT, &draft);
+    send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
 
     Ok(())
 }

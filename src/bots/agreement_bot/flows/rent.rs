@@ -15,13 +15,13 @@ use teloxide::prelude::*;
 use teloxide::types::{CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup};
 
 use crate::bots::agreement_bot::keyboards::{
-    build_cancel_keyboard, build_confirm_keyboard, build_contract_duration_keyboard,
-    build_currency_keyboard, build_due_day_keyboard, build_menu_keyboard, build_mini_calendar,
+    build_confirm_keyboard, build_contract_duration_keyboard, build_currency_keyboard,
     build_pre_reminder_keyboard, build_yes_no_keyboard, days_in_month,
 };
 use crate::bots::agreement_bot::types::{states, RentDraft, STATE_EXPIRY_MINUTES};
 use crate::bots::agreement_bot::utils::{
-    get_user_language, send_message_with_keyboard, send_telegram_message,
+    confirm_selection_and_send_next, get_user_language, send_message_with_keyboard,
+    send_telegram_message,
 };
 
 pub async fn handle_rent_callback(
@@ -48,150 +48,228 @@ pub async fn handle_rent_callback(
         .and_then(|d| serde_json::from_value(d.clone()).ok())
         .unwrap_or_default();
 
-    if let Some(scope_answer) = data.strip_prefix("rent:scope:") {
-        if scope_answer == "no" {
-            if let Err(e) = clear_conversation_state(pool, user_id) {
-                tracing::warn!(
-                    "Failed to clear conversation state for user {}: {:?}",
-                    user_id,
-                    e
-                );
-            }
-            bot.edit_message_text(
-                msg.chat.id,
+    if let Some(role) = data.strip_prefix("rent:role:") {
+        draft.user_role = Some(role.to_string());
+        let role_display = if role == "tenant" {
+            t(&language, "agreement.rent.step2_role.tenant_button")
+        } else {
+            t(&language, "agreement.rent.step2_role.landlord_button")
+        };
+        let selected_text = t_with_args(
+            &language,
+            "common.selected_with_context.role",
+            &[&role_display],
+        );
+        let current_year = Utc::now().year().to_string();
+        let next_message = format!(
+            "{}\n\n{}",
+            t_with_args(&language, "common.step_progress", &["3", "12"]),
+            t_with_args(
+                &language,
+                "agreement.date_picker.enter_year",
+                &[&current_year]
+            )
+        );
+        let keyboard = InlineKeyboardMarkup::default();
+        update_state(pool, user_id, states::RENT_START_YEAR, &draft);
+        confirm_selection_and_send_next(
+            bot,
+            chat_id,
+            thread_id,
+            msg.id,
+            &selected_text,
+            &next_message,
+            keyboard,
+        )
+        .await?;
+    } else if let Some(duration_str) = data.strip_prefix("rent:duration:") {
+        if duration_str == "other" {
+            let selected_text = t_with_args(
+                &language,
+                "common.selected_with_context.duration",
+                &[&t(&language, "agreement.rent.contract_duration.other")],
+            );
+            let next_message = format!(
+                "{}\n\n{}",
+                t_with_args(&language, "common.step_progress", &["6", "12"]),
+                t(&language, "agreement.rent.contract_duration.custom_prompt")
+            );
+            let keyboard = InlineKeyboardMarkup::default();
+            update_state(pool, user_id, states::RENT_CONTRACT_DURATION_CUSTOM, &draft);
+            confirm_selection_and_send_next(
+                bot,
+                chat_id,
+                thread_id,
                 msg.id,
-                t(&language, "agreement.rent.scope_check.commercial_notice"),
+                &selected_text,
+                &next_message,
+                keyboard,
             )
             .await?;
-            return Ok(());
-        }
-        let message = format!(
-            "{}\n\n{}",
-            t_with_args(&language, "common.step_progress", &["1", "10"]),
-            t(&language, "agreement.rent.step1_title.prompt")
-        );
-        let keyboard = build_cancel_keyboard(&language);
-        update_state(pool, user_id, states::RENT_TITLE, &draft);
-        bot.edit_message_text(msg.chat.id, msg.id, &message)
-            .reply_markup(keyboard)
-            .await?;
-    } else if let Some(role) = data.strip_prefix("rent:role:") {
-        draft.user_role = Some(role.to_string());
-        let message = format!(
-            "{}\n\n{}",
-            t_with_args(&language, "common.step_progress", &["3", "10"]),
-            t(&language, "agreement.rent.step3_start_date.prompt")
-        );
-        let keyboard = build_mini_calendar(&language, Utc::now().date_naive());
-        update_state(pool, user_id, states::RENT_START_DATE, &draft);
-        bot.edit_message_text(msg.chat.id, msg.id, &message)
-            .reply_markup(keyboard)
-            .await?;
-    } else if let Some(duration_str) = data.strip_prefix("rent:duration:") {
-        if let Ok(duration) = duration_str.parse::<i32>() {
+        } else if let Ok(duration) = duration_str.parse::<i32>() {
             draft.contract_duration = Some(duration);
-            let message = format!(
+            let duration_key = match duration {
+                1 => "agreement.rent.contract_duration.1_year",
+                2 => "agreement.rent.contract_duration.2_years",
+                3 => "agreement.rent.contract_duration.3_years",
+                _ => "agreement.rent.contract_duration.1_year",
+            };
+            let duration_display = t(&language, duration_key);
+            let selected_text = t_with_args(
+                &language,
+                "common.selected_with_context.duration",
+                &[&duration_display],
+            );
+            let next_message = format!(
                 "{}\n\n{}",
-                t_with_args(&language, "common.step_progress", &["5", "10"]),
+                t_with_args(&language, "common.step_progress", &["7", "12"]),
                 t(&language, "agreement.rent.step5_currency.prompt")
             );
             let keyboard = build_currency_keyboard();
             update_state(pool, user_id, states::RENT_CURRENCY, &draft);
-            bot.edit_message_text(msg.chat.id, msg.id, &message)
-                .reply_markup(keyboard)
-                .await?;
+            confirm_selection_and_send_next(
+                bot,
+                chat_id,
+                thread_id,
+                msg.id,
+                &selected_text,
+                &next_message,
+                keyboard,
+            )
+            .await?;
         }
     } else if let Some(currency) = data.strip_prefix("rent:currency:") {
         if !["TRY", "EUR", "USD", "GBP"].contains(&currency) {
             return Ok(());
         }
         draft.currency = Some(currency.to_string());
-        let message = format!(
+        let currency_display = match currency {
+            "TRY" => "🇹🇷 TRY",
+            "EUR" => "🇪🇺 EUR",
+            "USD" => "🇺🇸 USD",
+            "GBP" => "🇬🇧 GBP",
+            _ => currency,
+        };
+        let selected_text = t_with_args(
+            &language,
+            "common.selected_with_context.currency",
+            &[currency_display],
+        );
+        let next_message = format!(
             "{}\n\n{}",
-            t_with_args(&language, "common.step_progress", &["6", "10"]),
+            t_with_args(&language, "common.step_progress", &["8", "12"]),
             t(&language, "agreement.rent.step6_amount.prompt")
         );
-        let keyboard = build_cancel_keyboard(&language);
+        let keyboard = InlineKeyboardMarkup::default();
         update_state(pool, user_id, states::RENT_AMOUNT, &draft);
-        bot.edit_message_text(msg.chat.id, msg.id, &message)
-            .reply_markup(keyboard)
-            .await?;
-    } else if let Some(day_str) = data.strip_prefix("rent:due_day:") {
-        if let Ok(day) = day_str.parse::<i32>() {
-            draft.due_day = Some(day);
-            let mut message = format!(
-                "{}\n\n{}",
-                t_with_args(&language, "common.step_progress", &["8", "10"]),
-                t(&language, "agreement.rent.step8_monthly_reminder.prompt")
-            );
-            if day >= 29 {
-                message.push_str("\n\n");
-                message.push_str(&t(&language, "agreement.rent.step7_due_day.late_day_note"));
-            }
-            let keyboard = build_yes_no_keyboard(&language, "rent:monthly");
-            update_state(pool, user_id, states::RENT_MONTHLY_REMINDER, &draft);
-            bot.edit_message_text(msg.chat.id, msg.id, &message)
-                .reply_markup(keyboard)
-                .await?;
-        }
+        confirm_selection_and_send_next(
+            bot,
+            chat_id,
+            thread_id,
+            msg.id,
+            &selected_text,
+            &next_message,
+            keyboard,
+        )
+        .await?;
     } else if let Some(answer) = data.strip_prefix("rent:monthly:") {
         draft.has_monthly_reminder = Some(answer == "yes");
+        let answer_display = if answer == "yes" {
+            t(&language, "common.selected_with_context.enabled")
+        } else {
+            t(&language, "common.selected_with_context.disabled")
+        };
+        let selected_text = t_with_args(
+            &language,
+            "common.selected_with_context.monthly_reminder",
+            &[&answer_display],
+        );
         if answer == "yes" {
-            let message = format!(
+            let next_message = format!(
                 "{}\n\n{}",
-                t_with_args(&language, "common.step_progress", &["9", "10"]),
+                t_with_args(&language, "common.step_progress", &["11", "12"]),
                 t(&language, "agreement.rent.step9_pre_reminder.prompt")
             );
             let keyboard = build_pre_reminder_keyboard(&language);
             update_state(pool, user_id, states::RENT_REMINDER_TIMING, &draft);
-            bot.edit_message_text(msg.chat.id, msg.id, &message)
-                .reply_markup(keyboard)
-                .await?;
+            confirm_selection_and_send_next(
+                bot,
+                chat_id,
+                thread_id,
+                msg.id,
+                &selected_text,
+                &next_message,
+                keyboard,
+            )
+            .await?;
         } else {
-            let message = format!(
+            let next_message = format!(
                 "{}\n\n{}",
-                t_with_args(&language, "common.step_progress", &["10", "10"]),
+                t_with_args(&language, "common.step_progress", &["12", "12"]),
                 t(&language, "agreement.rent.step10_yearly_increase.prompt")
             );
             let keyboard = build_yes_no_keyboard(&language, "rent:yearly");
             update_state(pool, user_id, states::RENT_YEARLY_INCREASE, &draft);
-            bot.edit_message_text(msg.chat.id, msg.id, &message)
-                .reply_markup(keyboard)
-                .await?;
+            confirm_selection_and_send_next(
+                bot,
+                chat_id,
+                thread_id,
+                msg.id,
+                &selected_text,
+                &next_message,
+                keyboard,
+            )
+            .await?;
         }
     } else if let Some(timing) = data.strip_prefix("rent:timing:") {
         draft.reminder_timing = Some(timing.to_string());
-        let message = format!(
+        let timing_key = match timing {
+            "1_day_before" => "agreement.rent.step9_pre_reminder.1_day_before",
+            "3_days_before" => "agreement.rent.step9_pre_reminder.3_days_before",
+            "1_week_before" => "agreement.rent.step9_pre_reminder.1_week_before",
+            _ => "agreement.rent.step9_pre_reminder.no_extra",
+        };
+        let timing_display = t(&language, timing_key);
+        let selected_text = t_with_args(
+            &language,
+            "common.selected_with_context.pre_reminder",
+            &[&timing_display],
+        );
+        let next_message = format!(
             "{}\n\n{}",
-            t_with_args(&language, "common.step_progress", &["10", "10"]),
+            t_with_args(&language, "common.step_progress", &["12", "12"]),
             t(&language, "agreement.rent.step10_yearly_increase.prompt")
         );
         let keyboard = build_yes_no_keyboard(&language, "rent:yearly");
         update_state(pool, user_id, states::RENT_YEARLY_INCREASE, &draft);
-        bot.edit_message_text(msg.chat.id, msg.id, &message)
-            .reply_markup(keyboard)
-            .await?;
-    } else if let Some(answer) = data.strip_prefix("rent:yearly:") {
-        draft.has_yearly_increase_reminder = Some(answer == "yes");
-        show_rent_summary(
-            pool, bot, chat_id, thread_id, msg.id, user_id, &language, &draft,
+        confirm_selection_and_send_next(
+            bot,
+            chat_id,
+            thread_id,
+            msg.id,
+            &selected_text,
+            &next_message,
+            keyboard,
         )
         .await?;
+    } else if let Some(answer) = data.strip_prefix("rent:yearly:") {
+        draft.has_yearly_increase_reminder = Some(answer == "yes");
+        let answer_display = if answer == "yes" {
+            t(&language, "common.selected_with_context.enabled")
+        } else {
+            t(&language, "common.selected_with_context.disabled")
+        };
+        let selected_text = t_with_args(
+            &language,
+            "common.selected_with_context.yearly_increase",
+            &[&answer_display],
+        );
+        bot.edit_message_text(msg.chat.id, msg.id, &selected_text)
+            .await?;
+        show_rent_summary(pool, bot, chat_id, thread_id, user_id, &language, &draft).await?;
     } else if data == "rent:confirm" {
         save_rent_agreement(
             pool, bot, chat_id, thread_id, msg.id, user_id, &language, &draft,
-        )
-        .await?;
-    } else if data.starts_with("rent:cal:") {
-        handle_calendar_callback(
-            pool,
-            bot,
-            msg.chat.id,
-            msg.id,
-            user_id,
-            &language,
-            data,
-            &mut draft,
         )
         .await?;
     }
@@ -212,13 +290,11 @@ fn update_state(pool: &DbPool, user_id: i64, new_state: &str, draft: &RentDraft)
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn show_rent_summary(
     pool: &DbPool,
     bot: &Bot,
     chat_id: i64,
-    _thread_id: Option<i32>,
-    message_id: teloxide::types::MessageId,
+    thread_id: Option<i32>,
     user_id: i64,
     language: &str,
     draft: &RentDraft,
@@ -298,9 +374,7 @@ async fn show_rent_summary(
     let keyboard = build_confirm_keyboard(language, "rent");
     update_state(pool, user_id, states::RENT_SUMMARY, draft);
 
-    bot.edit_message_text(ChatId(chat_id), message_id, &summary)
-        .reply_markup(keyboard)
-        .await?;
+    send_message_with_keyboard(bot, chat_id, thread_id, &summary, keyboard).await?;
 
     Ok(())
 }
@@ -310,8 +384,8 @@ async fn save_rent_agreement(
     pool: &DbPool,
     bot: &Bot,
     chat_id: i64,
-    _thread_id: Option<i32>,
-    message_id: teloxide::types::MessageId,
+    thread_id: Option<i32>,
+    _message_id: teloxide::types::MessageId,
     user_id: i64,
     language: &str,
     draft: &RentDraft,
@@ -319,10 +393,13 @@ async fn save_rent_agreement(
     let user = match find_agreement_user_by_telegram_id(pool, user_id) {
         Ok(Some(u)) => u,
         _ => {
-            bot.edit_message_text(
-                ChatId(chat_id),
-                message_id,
-                t(language, "agreement.errors.user_not_found"),
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.errors.user_not_found"),
+                },
             )
             .await?;
             return Ok(());
@@ -365,10 +442,13 @@ async fn save_rent_agreement(
         Err(e) => {
             tracing::error!("Failed to create agreement: {:?}", e);
             METRICS.increment_errors();
-            bot.edit_message_text(
-                ChatId(chat_id),
-                message_id,
-                t(language, "agreement.errors.database_error"),
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.errors.database_error"),
+                },
             )
             .await?;
             return Ok(());
@@ -444,7 +524,7 @@ async fn save_rent_agreement(
     let end_year = start_year + contract_duration + 10;
 
     let success_message = format!(
-        "{}\n\n{}",
+        "{}\n\n{}\n\n{}",
         t(language, "agreement.rent.success.title"),
         t_with_args(
             language,
@@ -457,13 +537,19 @@ async fn save_rent_agreement(
                 draft.rent_amount.as_deref().unwrap_or("-"),
                 draft.currency.as_deref().unwrap_or("TRY"),
             ]
-        )
+        ),
+        t(language, "agreement.rent.success.list_hint")
     );
 
-    let keyboard = build_menu_keyboard(language);
-    bot.edit_message_text(ChatId(chat_id), message_id, &success_message)
-        .reply_markup(keyboard)
-        .await?;
+    send_telegram_message(
+        bot,
+        TelegramMessage {
+            chat_id,
+            thread_id,
+            message: success_message,
+        },
+    )
+    .await?;
 
     Ok(())
 }
@@ -632,13 +718,19 @@ fn generate_ten_year_reminders(
 
     let today = Utc::now().date_naive();
     let mut reminders = Vec::new();
+    let is_landlord = agreement.user_role.as_deref() == Some("landlord");
 
     if let Some(reminder_6m) = ten_year_milestone.checked_sub_months(Months::new(6)) {
         if reminder_6m > today {
+            let title_key = if is_landlord {
+                "agreement.rent.ten_year.landlord_6_months_title"
+            } else {
+                "agreement.rent.ten_year.tenant_6_months_title"
+            };
             reminders.push(NewReminder {
                 agreement_id: agreement.id,
                 reminder_type: "ten_year_notice".to_string(),
-                title: t(language, "agreement.rent.ten_year.6_months_title"),
+                title: t(language, title_key),
                 amount: None,
                 due_date: ten_year_milestone,
                 reminder_date: reminder_6m,
@@ -651,9 +743,14 @@ fn generate_ten_year_reminders(
             let notice_deadline = ten_year_milestone
                 .checked_sub_months(Months::new(3))
                 .unwrap_or(ten_year_milestone);
+            let title_key = if is_landlord {
+                "agreement.rent.ten_year.landlord_4_months_title"
+            } else {
+                "agreement.rent.ten_year.tenant_4_months_title"
+            };
             let title = t_with_args(
                 language,
-                "agreement.rent.ten_year.4_months_title",
+                title_key,
                 &[&notice_deadline.format("%d.%m.%Y").to_string()],
             );
             reminders.push(NewReminder {
@@ -669,10 +766,15 @@ fn generate_ten_year_reminders(
 
     if let Some(reminder_3m) = ten_year_milestone.checked_sub_months(Months::new(3)) {
         if reminder_3m > today {
+            let title_key = if is_landlord {
+                "agreement.rent.ten_year.landlord_3_months_title"
+            } else {
+                "agreement.rent.ten_year.tenant_3_months_title"
+            };
             reminders.push(NewReminder {
                 agreement_id: agreement.id,
                 reminder_type: "ten_year_notice".to_string(),
-                title: t(language, "agreement.rent.ten_year.3_months_title"),
+                title: t(language, title_key),
                 amount: None,
                 due_date: ten_year_milestone,
                 reminder_date: reminder_3m,
@@ -692,7 +794,7 @@ fn generate_five_year_reminders(
     agreement: &Agreement,
     draft: &RentDraft,
     start_date: Option<NaiveDate>,
-    _contract_duration: i32,
+    contract_duration: i32,
     language: &str,
 ) -> Result<(), DbError> {
     let start = match start_date {
@@ -704,6 +806,12 @@ fn generate_five_year_reminders(
         return Ok(());
     }
 
+    let ten_year_period_months = ((contract_duration + 10) * 12) as u32;
+    let ten_year_end = match start.checked_add_months(Months::new(ten_year_period_months)) {
+        Some(d) => d,
+        None => return Ok(()),
+    };
+
     let today = Utc::now().date_naive();
     let mut reminders = Vec::new();
 
@@ -712,6 +820,10 @@ fn generate_five_year_reminders(
             Some(d) => d,
             None => continue,
         };
+
+        if five_year_milestone >= ten_year_end {
+            continue;
+        }
 
         let period_years = (5 * period).to_string();
         let title = if draft.user_role.as_deref() == Some("landlord") {
@@ -754,20 +866,20 @@ fn generate_five_year_reminders(
             }
         }
 
-        if let Some(reminder_30d) = five_year_milestone.checked_sub_days(chrono::Days::new(30)) {
-            if reminder_30d > today {
-                let title_30d = t_with_args(
+        if let Some(reminder_31d) = five_year_milestone.checked_sub_days(chrono::Days::new(31)) {
+            if reminder_31d > today {
+                let title_31d = t_with_args(
                     language,
                     "agreement.rent.five_year.notice_deadline_title",
-                    &[&period_years, "30"],
+                    &[&period_years, "31"],
                 );
                 reminders.push(NewReminder {
                     agreement_id: agreement.id,
                     reminder_type: "five_year_notice".to_string(),
-                    title: title_30d,
+                    title: title_31d,
                     amount: None,
                     due_date: five_year_milestone,
-                    reminder_date: reminder_30d,
+                    reminder_date: reminder_31d,
                 });
             }
         }
@@ -775,111 +887,6 @@ fn generate_five_year_reminders(
 
     if !reminders.is_empty() {
         create_reminders_batch(pool, reminders)?;
-    }
-
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn handle_calendar_callback(
-    pool: &DbPool,
-    bot: &Bot,
-    chat_id: ChatId,
-    message_id: teloxide::types::MessageId,
-    user_id: i64,
-    language: &str,
-    data: &str,
-    draft: &mut RentDraft,
-) -> ResponseResult<()> {
-    if data == "rent:cal:noop" {
-        return Ok(());
-    }
-
-    if let Some(rest) = data.strip_prefix("rent:cal:prev:") {
-        let parts: Vec<&str> = rest.split(':').collect();
-        if parts.len() == 2 {
-            if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
-                let (new_year, new_month) = if month == 1 {
-                    (year - 1, 12)
-                } else {
-                    (year, month - 1)
-                };
-                let new_date = match NaiveDate::from_ymd_opt(new_year, new_month, 1) {
-                    Some(d) => d,
-                    None => {
-                        tracing::warn!(
-                            "Invalid date for prev month: year={}, month={}",
-                            new_year,
-                            new_month
-                        );
-                        return Ok(());
-                    }
-                };
-                let keyboard = build_mini_calendar(language, new_date);
-                let message = format!(
-                    "{}\n\n{}",
-                    t_with_args(language, "common.step_progress", &["3", "10"]),
-                    t(language, "agreement.rent.step3_start_date.prompt")
-                );
-                bot.edit_message_text(chat_id, message_id, &message)
-                    .reply_markup(keyboard)
-                    .await?;
-            }
-        }
-    } else if let Some(rest) = data.strip_prefix("rent:cal:next:") {
-        let parts: Vec<&str> = rest.split(':').collect();
-        if parts.len() == 2 {
-            if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
-                let (new_year, new_month) = if month == 12 {
-                    (year + 1, 1)
-                } else {
-                    (year, month + 1)
-                };
-                let new_date = match NaiveDate::from_ymd_opt(new_year, new_month, 1) {
-                    Some(d) => d,
-                    None => {
-                        tracing::warn!(
-                            "Invalid date for next month: year={}, month={}",
-                            new_year,
-                            new_month
-                        );
-                        return Ok(());
-                    }
-                };
-                let keyboard = build_mini_calendar(language, new_date);
-                let message = format!(
-                    "{}\n\n{}",
-                    t_with_args(language, "common.step_progress", &["3", "10"]),
-                    t(language, "agreement.rent.step3_start_date.prompt")
-                );
-                bot.edit_message_text(chat_id, message_id, &message)
-                    .reply_markup(keyboard)
-                    .await?;
-            }
-        }
-    } else if let Some(rest) = data.strip_prefix("rent:cal:day:") {
-        let parts: Vec<&str> = rest.split(':').collect();
-        if parts.len() == 3 {
-            if let (Ok(year), Ok(month), Ok(day)) = (
-                parts[0].parse::<i32>(),
-                parts[1].parse::<u32>(),
-                parts[2].parse::<u32>(),
-            ) {
-                let selected_date = format!("{:02}.{:02}.{}", day, month, year);
-                draft.start_date = Some(selected_date);
-
-                let message = format!(
-                    "{}\n\n{}",
-                    t_with_args(language, "common.step_progress", &["4", "10"]),
-                    t(language, "agreement.rent.step4_contract_duration.prompt")
-                );
-                let keyboard = build_contract_duration_keyboard(language);
-                update_state(pool, user_id, states::RENT_CONTRACT_DURATION, draft);
-                bot.edit_message_text(chat_id, message_id, &message)
-                    .reply_markup(keyboard)
-                    .await?;
-            }
-        }
     }
 
     Ok(())
@@ -951,7 +958,7 @@ pub async fn handle_rent_title_input(
 
     let message = format!(
         "{}\n\n{}",
-        t_with_args(language, "common.step_progress", &["2", "10"]),
+        t_with_args(language, "common.step_progress", &["2", "12"]),
         t(language, "agreement.rent.step2_role.prompt")
     );
 
@@ -1011,12 +1018,312 @@ pub async fn handle_rent_amount_input(
 
     let message = format!(
         "{}\n\n{}",
-        t_with_args(language, "common.step_progress", &["7", "10"]),
-        t(language, "agreement.rent.step7_due_day.prompt")
+        t_with_args(language, "common.step_progress", &["9", "12"]),
+        t(language, "agreement.rent.step7_due_day.prompt_text")
     );
 
-    let keyboard = build_due_day_keyboard();
+    let keyboard = InlineKeyboardMarkup::default();
     update_state(pool, user_id, states::RENT_DUE_DAY, &draft);
+    send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
+
+    Ok(())
+}
+
+pub async fn handle_rent_due_day_input(
+    pool: &DbPool,
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    user_id: i64,
+    language: &str,
+    text: &str,
+) -> ResponseResult<()> {
+    use crate::bots::agreement_bot::types::sanitize_input;
+    let day_str = sanitize_input(text);
+
+    let day = match day_str.parse::<i32>() {
+        Ok(d) if (1..=31).contains(&d) => d,
+        _ => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.validation.invalid_day"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let state = get_conversation_state(pool, user_id).ok().flatten();
+    let mut draft: RentDraft = state
+        .as_ref()
+        .and_then(|s| s.state_data.as_ref())
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .unwrap_or_default();
+
+    draft.due_day = Some(day);
+
+    let mut message = format!(
+        "{}\n\n{}",
+        t_with_args(language, "common.step_progress", &["10", "12"]),
+        t(language, "agreement.rent.step8_monthly_reminder.prompt")
+    );
+    if day >= 29 {
+        message.push_str("\n\n");
+        message.push_str(&t(language, "agreement.rent.step7_due_day.late_day_note"));
+    }
+
+    let keyboard = build_yes_no_keyboard(language, "rent:monthly");
+    update_state(pool, user_id, states::RENT_MONTHLY_REMINDER, &draft);
+    send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
+
+    Ok(())
+}
+
+pub async fn handle_rent_start_year_input(
+    pool: &DbPool,
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    user_id: i64,
+    language: &str,
+    text: &str,
+) -> ResponseResult<()> {
+    use crate::bots::agreement_bot::types::sanitize_input;
+    let year_str = sanitize_input(text);
+
+    let year = match year_str.parse::<i32>() {
+        Ok(y) if (1900..=2100).contains(&y) => y,
+        _ => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.date_picker.invalid_year"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let state = get_conversation_state(pool, user_id).ok().flatten();
+    let mut draft: RentDraft = state
+        .as_ref()
+        .and_then(|s| s.state_data.as_ref())
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .unwrap_or_default();
+
+    draft.start_year = Some(year);
+
+    let message = format!(
+        "{}\n\n{}",
+        t_with_args(language, "common.step_progress", &["4", "12"]),
+        t(language, "agreement.date_picker.enter_month")
+    );
+    let keyboard = InlineKeyboardMarkup::default();
+    update_state(pool, user_id, states::RENT_START_MONTH, &draft);
+    send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
+
+    Ok(())
+}
+
+pub async fn handle_rent_start_month_input(
+    pool: &DbPool,
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    user_id: i64,
+    language: &str,
+    text: &str,
+) -> ResponseResult<()> {
+    use crate::bots::agreement_bot::types::sanitize_input;
+    let month_str = sanitize_input(text);
+
+    let month = match month_str.parse::<u32>() {
+        Ok(m) if (1..=12).contains(&m) => m,
+        _ => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.date_picker.invalid_month"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let state = get_conversation_state(pool, user_id).ok().flatten();
+    let mut draft: RentDraft = state
+        .as_ref()
+        .and_then(|s| s.state_data.as_ref())
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .unwrap_or_default();
+
+    draft.start_month = Some(month);
+
+    let year = draft.start_year.unwrap_or(Utc::now().year());
+    let max_day = days_in_month(year, month);
+
+    let message = format!(
+        "{}\n\n{}",
+        t_with_args(language, "common.step_progress", &["5", "12"]),
+        t_with_args(
+            language,
+            "agreement.date_picker.enter_day",
+            &[&max_day.to_string()]
+        )
+    );
+    let keyboard = InlineKeyboardMarkup::default();
+    update_state(pool, user_id, states::RENT_START_DAY, &draft);
+    send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
+
+    Ok(())
+}
+
+pub async fn handle_rent_start_day_input(
+    pool: &DbPool,
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    user_id: i64,
+    language: &str,
+    text: &str,
+) -> ResponseResult<()> {
+    use crate::bots::agreement_bot::types::sanitize_input;
+    let day_str = sanitize_input(text);
+
+    let state = get_conversation_state(pool, user_id).ok().flatten();
+    let mut draft: RentDraft = state
+        .as_ref()
+        .and_then(|s| s.state_data.as_ref())
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .unwrap_or_default();
+
+    let year = match draft.start_year {
+        Some(y) => y,
+        None => {
+            tracing::error!("Reached day input handler without year in draft");
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.errors.database_error"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let month = match draft.start_month {
+        Some(m) => m,
+        None => {
+            tracing::error!("Reached day input handler without month in draft");
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(language, "agreement.errors.database_error"),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let max_day = days_in_month(year, month);
+
+    let day = match day_str.parse::<u32>() {
+        Ok(d) if d >= 1 && d <= max_day => d,
+        _ => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t_with_args(
+                        language,
+                        "agreement.date_picker.invalid_day",
+                        &[&max_day.to_string()],
+                    ),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    draft.start_date = Some(format!("{:02}.{:02}.{}", day, month, year));
+    draft.start_year = None;
+    draft.start_month = None;
+
+    let message = format!(
+        "{}\n\n{}",
+        t_with_args(language, "common.step_progress", &["6", "12"]),
+        t(language, "agreement.rent.step4_contract_duration.prompt")
+    );
+    let keyboard = build_contract_duration_keyboard(language);
+    update_state(pool, user_id, states::RENT_CONTRACT_DURATION, &draft);
+    send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
+
+    Ok(())
+}
+
+pub async fn handle_rent_contract_duration_custom_input(
+    pool: &DbPool,
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    user_id: i64,
+    language: &str,
+    text: &str,
+) -> ResponseResult<()> {
+    use crate::bots::agreement_bot::types::sanitize_input;
+    let duration_str = sanitize_input(text);
+
+    let duration = match duration_str.parse::<i32>() {
+        Ok(d) if (1..=30).contains(&d) => d,
+        _ => {
+            send_telegram_message(
+                bot,
+                TelegramMessage {
+                    chat_id,
+                    thread_id,
+                    message: t(
+                        language,
+                        "agreement.rent.contract_duration.invalid_duration",
+                    ),
+                },
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let state = get_conversation_state(pool, user_id).ok().flatten();
+    let mut draft: RentDraft = state
+        .as_ref()
+        .and_then(|s| s.state_data.as_ref())
+        .and_then(|d| serde_json::from_value(d.clone()).ok())
+        .unwrap_or_default();
+
+    draft.contract_duration = Some(duration);
+
+    let message = format!(
+        "{}\n\n{}",
+        t_with_args(language, "common.step_progress", &["7", "12"]),
+        t(language, "agreement.rent.step5_currency.prompt")
+    );
+    let keyboard = build_currency_keyboard();
+    update_state(pool, user_id, states::RENT_CURRENCY, &draft);
     send_message_with_keyboard(bot, chat_id, thread_id, &message, keyboard).await?;
 
     Ok(())

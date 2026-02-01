@@ -14,14 +14,36 @@ pub fn get_user_language(pool: &DbPool, user_id: i64) -> String {
     }
 }
 
-pub fn detect_language_from_message(msg: &Message) -> String {
+pub fn detect_language_from_telegram(msg: &Message) -> Option<String> {
     if let Some(user) = msg.from() {
         if let Some(lang_code) = &user.language_code {
-            match lang_code.as_str() {
-                "tr" | "tr-TR" => return "tr".to_string(),
-                "en" | "en-US" | "en-GB" => return "en".to_string(),
-                _ => {}
+            let code = lang_code.to_lowercase();
+            if code == "tr" || code.starts_with("tr-") {
+                return Some("tr".to_string());
             }
+            if code == "en" || code.starts_with("en-") {
+                return Some("en".to_string());
+            }
+        }
+    }
+    None
+}
+
+pub fn detect_language_from_text(text: &str) -> Option<String> {
+    const TURKISH_CHARS: &[char] = &['ç', 'ğ', 'ı', 'İ', 'ö', 'ş', 'ü', 'Ç', 'Ğ', 'Ö', 'Ş', 'Ü'];
+    if text.chars().any(|c| TURKISH_CHARS.contains(&c)) {
+        return Some("tr".to_string());
+    }
+    None
+}
+
+pub fn detect_language(msg: &Message) -> String {
+    if let Some(lang) = detect_language_from_telegram(msg) {
+        return lang;
+    }
+    if let Some(text) = msg.text() {
+        if let Some(lang) = detect_language_from_text(text) {
+            return lang;
         }
     }
     DEFAULT_LANGUAGE.to_string()
@@ -72,4 +94,68 @@ pub async fn send_message_with_keyboard(
     METRICS.increment_messages_sent_for_bot("agreement");
 
     Ok(())
+}
+
+pub async fn confirm_selection_and_send_next(
+    bot: &Bot,
+    chat_id: i64,
+    thread_id: Option<i32>,
+    message_id: teloxide::types::MessageId,
+    selection_text: &str,
+    next_message: &str,
+    next_keyboard: InlineKeyboardMarkup,
+) -> ResponseResult<()> {
+    bot.edit_message_text(ChatId(chat_id), message_id, selection_text)
+        .await?;
+
+    send_message_with_keyboard(bot, chat_id, thread_id, next_message, next_keyboard).await?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_language_from_text_turkish_chars() {
+        assert_eq!(detect_language_from_text("merhaba"), None);
+        assert_eq!(
+            detect_language_from_text("günaydın"),
+            Some("tr".to_string())
+        );
+        assert_eq!(
+            detect_language_from_text("çok güzel"),
+            Some("tr".to_string())
+        );
+        assert_eq!(
+            detect_language_from_text("nasılsın"),
+            Some("tr".to_string())
+        );
+        assert_eq!(
+            detect_language_from_text("İstanbul"),
+            Some("tr".to_string())
+        );
+        assert_eq!(detect_language_from_text("TÜRKÇE"), Some("tr".to_string()));
+        assert_eq!(detect_language_from_text("hello world"), None);
+        assert_eq!(detect_language_from_text("bonjour"), None);
+    }
+
+    #[test]
+    fn test_detect_language_from_text_empty() {
+        assert_eq!(detect_language_from_text(""), None);
+        assert_eq!(detect_language_from_text("   "), None);
+    }
+
+    #[test]
+    fn test_detect_language_from_text_mixed() {
+        assert_eq!(
+            detect_language_from_text("hello dünya"),
+            Some("tr".to_string())
+        );
+        assert_eq!(
+            detect_language_from_text("123 öğrenci"),
+            Some("tr".to_string())
+        );
+    }
 }

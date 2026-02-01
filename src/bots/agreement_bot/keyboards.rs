@@ -1,4 +1,3 @@
-use chrono::{Datelike, NaiveDate};
 use notifine::i18n::t;
 use notifine::models::Agreement;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
@@ -81,6 +80,7 @@ pub fn build_settings_keyboard(language: &str) -> InlineKeyboardMarkup {
     ])
 }
 
+#[allow(dead_code)]
 pub fn build_cancel_keyboard(language: &str) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![vec![InlineKeyboardButton::callback(
         t(language, "common.cancel_button"),
@@ -146,13 +146,14 @@ pub fn build_contract_duration_keyboard(language: &str) -> InlineKeyboardMarkup 
                 "rent:duration:3",
             ),
             InlineKeyboardButton::callback(
-                t(language, "agreement.rent.contract_duration.5_years"),
-                "rent:duration:5",
+                t(language, "agreement.rent.contract_duration.other"),
+                "rent:duration:other",
             ),
         ],
     ])
 }
 
+#[allow(dead_code)]
 pub fn build_due_day_keyboard() -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
     for row_start in (1..=31).step_by(7) {
@@ -205,21 +206,21 @@ pub fn build_pre_reminder_keyboard(language: &str) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![
             InlineKeyboardButton::callback(
-                t(language, "agreement.rent.step8_pre_reminder.1_day_before"),
+                t(language, "agreement.rent.step9_pre_reminder.1_day_before"),
                 "rent:timing:1_day_before",
             ),
             InlineKeyboardButton::callback(
-                t(language, "agreement.rent.step8_pre_reminder.3_days_before"),
+                t(language, "agreement.rent.step9_pre_reminder.3_days_before"),
                 "rent:timing:3_days_before",
             ),
         ],
         vec![
             InlineKeyboardButton::callback(
-                t(language, "agreement.rent.step8_pre_reminder.1_week_before"),
+                t(language, "agreement.rent.step9_pre_reminder.1_week_before"),
                 "rent:timing:1_week_before",
             ),
             InlineKeyboardButton::callback(
-                t(language, "agreement.rent.step8_pre_reminder.no_extra"),
+                t(language, "agreement.rent.step9_pre_reminder.no_extra"),
                 "rent:timing:same_day",
             ),
         ],
@@ -227,16 +228,10 @@ pub fn build_pre_reminder_keyboard(language: &str) -> InlineKeyboardMarkup {
 }
 
 pub fn build_confirm_keyboard(language: &str, callback_prefix: &str) -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new(vec![
-        vec![InlineKeyboardButton::callback(
-            t(language, "common.confirm_button"),
-            format!("{}:confirm", callback_prefix),
-        )],
-        vec![InlineKeyboardButton::callback(
-            t(language, "common.cancel_button"),
-            "flow:cancel",
-        )],
-    ])
+    InlineKeyboardMarkup::new(vec![vec![InlineKeyboardButton::callback(
+        t(language, "common.confirm_button"),
+        format!("{}:confirm", callback_prefix),
+    )]])
 }
 
 pub fn build_agreements_list_keyboard(
@@ -398,150 +393,6 @@ pub fn build_edit_due_day_keyboard(agreement_id: i32) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
-pub fn build_mini_calendar(language: &str, current: NaiveDate) -> InlineKeyboardMarkup {
-    let year = current.year();
-    let month = current.month();
-
-    let month_names = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    let header = format!("{} {}", month_names[(month - 1) as usize], year);
-
-    let mut rows = vec![vec![
-        InlineKeyboardButton::callback(
-            t(language, "agreement.calendar.prev_month"),
-            format!("rent:cal:prev:{}:{}", year, month),
-        ),
-        InlineKeyboardButton::callback(header, "rent:cal:noop"),
-        InlineKeyboardButton::callback(
-            t(language, "agreement.calendar.next_month"),
-            format!("rent:cal:next:{}:{}", year, month),
-        ),
-    ]];
-
-    let day_headers = vec!["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-    rows.push(
-        day_headers
-            .into_iter()
-            .map(|d| InlineKeyboardButton::callback(d.to_string(), "rent:cal:noop"))
-            .collect(),
-    );
-
-    let first_day = match NaiveDate::from_ymd_opt(year, month, 1) {
-        Some(d) => d,
-        None => {
-            tracing::warn!("Invalid date for calendar: year={}, month={}", year, month);
-            return InlineKeyboardMarkup::new(rows);
-        }
-    };
-    let days = days_in_month(year, month);
-    let first_weekday = first_day.weekday().num_days_from_monday() as usize;
-
-    let mut day = 1u32;
-    for _week in 0..6 {
-        if day > days {
-            break;
-        }
-        let mut row = Vec::new();
-        for weekday in 0..7 {
-            if (_week == 0 && weekday < first_weekday) || day > days {
-                row.push(InlineKeyboardButton::callback(
-                    " ".to_string(),
-                    "rent:cal:noop",
-                ));
-            } else {
-                row.push(InlineKeyboardButton::callback(
-                    day.to_string(),
-                    format!("rent:cal:day:{}:{}:{}", year, month, day),
-                ));
-                day += 1;
-            }
-        }
-        rows.push(row);
-    }
-
-    rows.push(vec![InlineKeyboardButton::callback(
-        t(language, "common.cancel_button"),
-        "flow:cancel",
-    )]);
-
-    InlineKeyboardMarkup::new(rows)
-}
-
-pub fn build_custom_calendar(language: &str, current: NaiveDate) -> InlineKeyboardMarkup {
-    let year = current.year();
-    let month = current.month();
-
-    let month_names = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    let header = format!("{} {}", month_names[(month - 1) as usize], year);
-
-    let mut rows = vec![vec![
-        InlineKeyboardButton::callback(
-            t(language, "agreement.calendar.prev_month"),
-            format!("custom:cal:prev:{}:{}", year, month),
-        ),
-        InlineKeyboardButton::callback(header, "custom:cal:noop"),
-        InlineKeyboardButton::callback(
-            t(language, "agreement.calendar.next_month"),
-            format!("custom:cal:next:{}:{}", year, month),
-        ),
-    ]];
-
-    let day_headers = vec!["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-    rows.push(
-        day_headers
-            .into_iter()
-            .map(|d| InlineKeyboardButton::callback(d.to_string(), "custom:cal:noop"))
-            .collect(),
-    );
-
-    let first_day = match NaiveDate::from_ymd_opt(year, month, 1) {
-        Some(d) => d,
-        None => {
-            tracing::warn!(
-                "Invalid date for custom calendar: year={}, month={}",
-                year,
-                month
-            );
-            return InlineKeyboardMarkup::new(rows);
-        }
-    };
-    let days = days_in_month(year, month);
-    let first_weekday = first_day.weekday().num_days_from_monday() as usize;
-
-    let mut day = 1u32;
-    for _week in 0..6 {
-        if day > days {
-            break;
-        }
-        let mut row = Vec::new();
-        for weekday in 0..7 {
-            if (_week == 0 && weekday < first_weekday) || day > days {
-                row.push(InlineKeyboardButton::callback(
-                    " ".to_string(),
-                    "custom:cal:noop",
-                ));
-            } else {
-                row.push(InlineKeyboardButton::callback(
-                    day.to_string(),
-                    format!("custom:cal:day:{}:{}:{}", year, month, day),
-                ));
-                day += 1;
-            }
-        }
-        rows.push(row);
-    }
-
-    rows.push(vec![InlineKeyboardButton::callback(
-        t(language, "common.cancel_button"),
-        "flow:cancel",
-    )]);
-
-    InlineKeyboardMarkup::new(rows)
-}
-
 pub fn build_custom_currency_keyboard() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![
@@ -598,10 +449,6 @@ pub fn build_reminder_list_keyboard(language: &str) -> InlineKeyboardMarkup {
         vec![InlineKeyboardButton::callback(
             t(language, "agreement.custom.add_reminder.finish"),
             "custom:finish",
-        )],
-        vec![InlineKeyboardButton::callback(
-            t(language, "common.cancel_button"),
-            "flow:cancel",
         )],
     ])
 }

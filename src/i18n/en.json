@@ -13,7 +13,18 @@
     "confirm_button": "✅ Confirm",
     "skip_button": "Skip",
     "continue_button": "Continue",
-    "step_progress": "Step {}/{}"
+    "step_progress": "Step {}/{}",
+    "selected": "✅ Selected: {}",
+    "selected_with_context": {
+      "role": "✅ Role: {}",
+      "duration": "✅ Contract duration: {}",
+      "currency": "✅ Currency: {}",
+      "monthly_reminder": "✅ Monthly payment reminder: {}",
+      "pre_reminder": "✅ Pre-reminder: {}",
+      "yearly_increase": "✅ Yearly increase reminder: {}",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    }
   },
   "agreement": {
     "welcome": {
@@ -33,16 +44,19 @@
       "title": "What type of agreement would you like to add?",
       "rent_button": "🏠 Residential Rent",
       "custom_button": "📝 Custom Agreement",
-      "coming_soon": "Coming soon!"
+      "coming_soon": "Coming soon!",
+      "selected_rent": "✅ Selected: Residential Rent",
+      "selected_custom": "✅ Selected: Custom Agreement"
     },
     "help": {
       "title": "📚 Commands",
-      "content": "Creation:\n/start - Create new agreement\n\nViewing:\n/today - Today's reminders\n/upcoming - Next 7 days\n/overdue - Overdue reminders\n\nManagement:\n/list - List all agreements\n/view - View agreement details\n/edit - Edit agreement\n/delete - Delete agreement\n/search - Search agreements\n\nSettings:\n/settings - All settings\n/language - Change language (TR/EN)\n/timezone - Change timezone\n/help - This help message\n\nCancel:\n/cancel - Cancel active operation"
+      "content": "Creation:\n/start - Create new agreement\n\nViewing:\n/today - Today's reminders (coming soon)\n/upcoming - Next 7 days (coming soon)\n/overdue - Overdue reminders (coming soon)\n\nManagement:\n/list - List all agreements\n/search - Search agreements (coming soon)\n\nSettings:\n/settings - All settings\n/language - Change language (TR/EN)\n/timezone - Change timezone\n/help - This help message\n\nCancel:\n/cancel - Cancel active operation"
     },
     "language": {
       "title": "🌐 Select Language",
       "current": "Current language: {}",
       "changed": "Language changed to English.",
+      "invalid": "Invalid language. Please use /lang en or /lang tr",
       "en_button": "🇬🇧 English",
       "tr_button": "🇹🇷 Türkçe"
     },
@@ -71,13 +85,6 @@
       "reminders_failed": "⚠️ Agreement created but reminders could not be saved. Please try again or contact support."
     },
     "rent": {
-      "scope_check": {
-        "title": "This feature is only for residential rentals.",
-        "question": "Is the rented property a residence?",
-        "yes_button": "✅ Yes, residence",
-        "no_button": "❌ No, commercial",
-        "commercial_notice": "Commercial property rental support will be added soon."
-      },
       "step1_title": {
         "prompt": "📝 Enter a name for this agreement:\n\nWe recommend a distinctive name. Example: Kadıköy Apartment, Summer House",
         "helper": "Max 50 characters"
@@ -97,7 +104,9 @@
         "1_year": "1 Year",
         "2_years": "2 Years",
         "3_years": "3 Years",
-        "5_years": "5 Years"
+        "other": "Other",
+        "custom_prompt": "Enter contract duration in years (1-30):",
+        "invalid_duration": "Please enter a number between 1-30."
       },
       "step5_currency": {
         "prompt": "💱 Select the currency:"
@@ -107,6 +116,7 @@
       },
       "step7_due_day": {
         "prompt": "📅 On which day of the month is rent due?\n\nSelect a day (1-31):",
+        "prompt_text": "📅 On which day of the month is rent due?\n\nEnter day (1-31):",
         "late_day_note": "ℹ️ Note: In February and 30-day months, the reminder will be sent on the last day of the month."
       },
       "step8_monthly_reminder": {
@@ -117,7 +127,7 @@
         "1_day_before": "1 day before",
         "3_days_before": "3 days before",
         "1_week_before": "1 week before",
-        "no_extra": "No extra reminder"
+        "no_extra": "No"
       },
       "step10_yearly_increase": {
         "prompt": "📈 Do you want yearly rent increase reminders?\n\nYou'll be notified when your annual rent increase period is approaching."
@@ -183,7 +193,8 @@
         "view_details": "📋 View details",
         "new_agreement": "🏠 New agreement",
         "payment_title": "Rent payment",
-        "collection_title": "Rent collection"
+        "collection_title": "Rent collection",
+        "list_hint": "Type /list to view your agreements."
       },
       "past_date_warning": {
         "title": "ℹ️ This date is in the past.",
@@ -197,13 +208,16 @@
         "tenant_title": "Your rent may increase at renewal. Check legal TUFE cap."
       },
       "ten_year": {
-        "6_months_title": "Your 10-year extension period is ending",
-        "4_months_title": "You must send termination notice by {} if you wish to terminate",
-        "3_months_title": "URGENT: Notice deadline approaching for 10-year termination"
+        "landlord_6_months_title": "10-year lease period ending. You may terminate without cause by giving 3 months notice after this date.",
+        "tenant_6_months_title": "10-year lease period ending. Landlord may terminate without cause by giving 3 months notice after this date.",
+        "landlord_4_months_title": "If you wish to terminate, send notice by {}.",
+        "tenant_4_months_title": "If landlord wishes to terminate, they must send notice by {}.",
+        "landlord_3_months_title": "URGENT: Deadline approaching for termination notice.",
+        "tenant_3_months_title": "URGENT: Deadline approaching for landlord's termination notice."
       },
       "five_year": {
-        "landlord_title": "{}-year rent review approaching. You may request court-determined fair market rent.",
-        "tenant_title": "{}-year rent review approaching. Landlord may request court redetermination.",
+        "landlord_title": "{}-year rent review period. You may request court-determined fair market rent - rent can be adjusted to market value.",
+        "tenant_title": "{}-year rent review period. Landlord may request court redetermination - your rent may increase above TUFE cap.",
         "notice_deadline_title": "Deadline for {}-year rent notice: {} days left"
       }
     },
@@ -234,15 +248,17 @@
       },
       "success": {
         "title": "✅ Agreement created!",
-        "reminder_count": "{} reminders added"
+        "reminder_count": "{} reminders added",
+        "list_hint": "Type /list to view your agreements."
       }
     },
-    "calendar": {
-      "select_month": "Select month:",
-      "select_year": "Select year:",
-      "prev_month": "◀️",
-      "next_month": "▶️",
-      "today": "Today"
+    "date_picker": {
+      "enter_year": "📅 Enter year (e.g., {}):",
+      "enter_month": "📅 Enter month (1-12):",
+      "enter_day": "📅 Enter day (1-{}):",
+      "invalid_year": "❌ Invalid year. Please enter a valid year (e.g., 2026).",
+      "invalid_month": "❌ Invalid month. Please enter 1-12.",
+      "invalid_day": "❌ Invalid day. Please enter 1-{}."
     },
     "validation": {
       "title_required": "❌ Title is required.",
@@ -285,6 +301,7 @@
       "field_role_tenant": "Tenant",
       "field_role_landlord": "Landlord",
       "field_start_date": "Start Date",
+      "field_contract_duration": "Contract Duration",
       "field_amount": "Amount",
       "field_due_day": "Due Day",
       "field_monthly_reminder": "Monthly Reminder",
@@ -303,7 +320,23 @@
       "back_button": "◀️ Back to List",
       "enabled": "Enabled",
       "disabled": "Disabled",
-      "day_of_month": "Day {} of month"
+      "day_of_month": "Day {} of month",
+      "pre_reminder_note": "({} day(s) before reminder)",
+      "reminder_due_day_only": "(Due day)",
+      "reminder_with_pre": "(Due day + {} day(s) before)",
+      "reminder_same_day": "Same day",
+      "months_before": "{} month(s) before",
+      "days_before": "{} day(s) before",
+      "yearly_summary": "Every year ({})",
+      "first_last_dates": "First: {}, Last: {}",
+      "notification_count": "total {} notification(s).",
+      "five_year_milestone": "Year {}: {}",
+      "ten_year_date": "Date: {}",
+      "contract_duration_years": "{} year(s)",
+      "five_year_view_tenant": "Landlord may request court redetermination - your rent may increase above TUFE cap.",
+      "five_year_view_landlord": "You may request court-determined fair market rent - rent can be adjusted to market value.",
+      "ten_year_view_tenant": "10-year lease period ending. Landlord may terminate without cause by giving 3 months notice after this date.",
+      "ten_year_view_landlord": "10-year lease period ending. You may terminate without cause by giving 3 months notice after this date."
     },
     "delete": {
       "confirm_title": "🗑️ Delete Agreement?",

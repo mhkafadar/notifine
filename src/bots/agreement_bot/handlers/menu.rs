@@ -4,11 +4,11 @@ use notifine::db::DbPool;
 use notifine::i18n::{t, t_with_args};
 use notifine::{clear_conversation_state, set_conversation_state};
 use teloxide::prelude::*;
-use teloxide::types::{CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup};
+use teloxide::types::CallbackQuery;
 
-use crate::bots::agreement_bot::keyboards::build_cancel_keyboard;
 use crate::bots::agreement_bot::types::{states, CustomDraft, RentDraft, STATE_EXPIRY_MINUTES};
 use crate::bots::agreement_bot::utils::{get_user_language, send_message_with_keyboard};
+use teloxide::types::InlineKeyboardMarkup;
 
 pub async fn handle_flow_cancel(
     pool: &DbPool,
@@ -53,10 +53,16 @@ pub async fn handle_menu_select(
     if let Some(msg) = &q.message {
         match selection {
             "menu:rent" => {
+                let selected_text = t(&language, "agreement.menu.selected_rent");
+                bot.edit_message_text(msg.chat.id, msg.id, &selected_text)
+                    .await?;
                 start_rent_flow(pool, bot, msg.chat.id.0, msg.thread_id, user_id, &language)
                     .await?;
             }
             "menu:custom" => {
+                let selected_text = t(&language, "agreement.menu.selected_custom");
+                bot.edit_message_text(msg.chat.id, msg.id, &selected_text)
+                    .await?;
                 start_custom_flow(pool, bot, msg.chat.id.0, msg.thread_id, user_id, &language)
                     .await?;
             }
@@ -77,20 +83,11 @@ async fn start_rent_flow(
 ) -> ResponseResult<()> {
     let message = format!(
         "{}\n\n{}",
-        t(language, "agreement.rent.scope_check.title"),
-        t(language, "agreement.rent.scope_check.question")
+        t_with_args(language, "common.step_progress", &["1", "12"]),
+        t(language, "agreement.rent.step1_title.prompt")
     );
 
-    let keyboard = InlineKeyboardMarkup::new(vec![vec![
-        InlineKeyboardButton::callback(
-            t(language, "agreement.rent.scope_check.yes_button"),
-            "rent:scope:yes",
-        ),
-        InlineKeyboardButton::callback(
-            t(language, "agreement.rent.scope_check.no_button"),
-            "rent:scope:no",
-        ),
-    ]]);
+    let keyboard = InlineKeyboardMarkup::default();
 
     let expires_at = Utc::now() + chrono::Duration::minutes(STATE_EXPIRY_MINUTES);
     let draft = RentDraft::default();
@@ -98,7 +95,7 @@ async fn start_rent_flow(
     if let Err(e) = set_conversation_state(
         pool,
         user_id,
-        states::RENT_SCOPE_CHECK,
+        states::RENT_TITLE,
         Some(serde_json::to_value(&draft).unwrap_or_default()),
         expires_at,
     ) {
@@ -125,7 +122,7 @@ async fn start_custom_flow(
         t(language, "agreement.custom.step1_title.prompt")
     );
 
-    let keyboard = build_cancel_keyboard(language);
+    let keyboard = InlineKeyboardMarkup::default();
 
     let expires_at = Utc::now() + chrono::Duration::minutes(STATE_EXPIRY_MINUTES);
     let draft = CustomDraft::default();
