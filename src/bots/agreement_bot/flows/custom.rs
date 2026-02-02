@@ -553,7 +553,6 @@ async fn save_custom_agreement(
         due_day: None,
         has_monthly_reminder: false,
         reminder_timing: None,
-        reminder_days_before: None,
         has_yearly_increase_reminder: false,
         description: draft.description.as_deref(),
         has_ten_year_reminder: false,

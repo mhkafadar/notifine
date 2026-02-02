@@ -206,7 +206,6 @@ async fn handle_edit_field(
         "timing_before" => {
             let updates = UpdateAgreement {
                 reminder_timing: Some(Some("before".to_string())),
-                reminder_days_before: Some(Some(3)),
                 ..Default::default()
             };
 
@@ -235,7 +234,6 @@ async fn handle_edit_field(
         "timing_on_day" => {
             let updates = UpdateAgreement {
                 reminder_timing: Some(Some("on_day".to_string())),
-                reminder_days_before: Some(Some(0)),
                 ..Default::default()
             };
 

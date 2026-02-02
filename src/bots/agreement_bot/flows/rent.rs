@@ -429,7 +429,6 @@ async fn save_rent_agreement(
         due_day: draft.due_day,
         has_monthly_reminder: draft.has_monthly_reminder.unwrap_or(false),
         reminder_timing: draft.reminder_timing.as_deref(),
-        reminder_days_before: None,
         has_yearly_increase_reminder: draft.has_yearly_increase_reminder.unwrap_or(false),
         description: None,
         has_ten_year_reminder: true,
@@ -559,7 +558,7 @@ fn generate_monthly_reminders(
     agreement: &notifine::models::Agreement,
     draft: &RentDraft,
     start_date: Option<NaiveDate>,
-    language: &str,
+    _language: &str,
 ) -> Result<(), notifine::db::DbError> {
     let start = match start_date {
         Some(d) => d,
@@ -597,18 +596,12 @@ fn generate_monthly_reminders(
                 continue;
             }
 
-            let title = if draft.user_role.as_deref() == Some("tenant") {
-                t(language, "agreement.rent.success.payment_title")
-            } else {
-                t(language, "agreement.rent.success.collection_title")
-            };
-
             if days_before > 0 {
                 let pre_reminder_date = due_date - chrono::Duration::days(days_before);
                 reminders.push(NewReminder {
                     agreement_id: agreement.id,
                     reminder_type: "pre_notify".to_string(),
-                    title: title.clone(),
+                    title: String::new(),
                     amount: agreement.rent_amount.clone(),
                     due_date,
                     reminder_date: pre_reminder_date,
@@ -618,7 +611,7 @@ fn generate_monthly_reminders(
             reminders.push(NewReminder {
                 agreement_id: agreement.id,
                 reminder_type: "due_day".to_string(),
-                title,
+                title: String::new(),
                 amount: agreement.rent_amount.clone(),
                 due_date,
                 reminder_date: due_date,
@@ -638,7 +631,7 @@ fn generate_yearly_increase_reminders(
     agreement: &Agreement,
     draft: &RentDraft,
     start_date: Option<NaiveDate>,
-    language: &str,
+    _language: &str,
 ) -> Result<(), DbError> {
     let start = match start_date {
         Some(d) => d,
@@ -658,18 +651,12 @@ fn generate_yearly_increase_reminders(
             None => continue,
         };
 
-        let title = if draft.user_role.as_deref() == Some("landlord") {
-            t(language, "agreement.rent.yearly_increase.landlord_title")
-        } else {
-            t(language, "agreement.rent.yearly_increase.tenant_title")
-        };
-
         if let Some(reminder_4m) = anniversary.checked_sub_months(Months::new(4)) {
             if reminder_4m > today {
                 reminders.push(NewReminder {
                     agreement_id: agreement.id,
                     reminder_type: "yearly_increase".to_string(),
-                    title: title.clone(),
+                    title: String::new(),
                     amount: None,
                     due_date: anniversary,
                     reminder_date: reminder_4m,
@@ -682,7 +669,7 @@ fn generate_yearly_increase_reminders(
                 reminders.push(NewReminder {
                     agreement_id: agreement.id,
                     reminder_type: "yearly_increase".to_string(),
-                    title: title.clone(),
+                    title: String::new(),
                     amount: None,
                     due_date: anniversary,
                     reminder_date: reminder_3m,
@@ -703,7 +690,7 @@ fn generate_ten_year_reminders(
     agreement: &Agreement,
     start_date: Option<NaiveDate>,
     contract_duration: i32,
-    language: &str,
+    _language: &str,
 ) -> Result<(), DbError> {
     let start = match start_date {
         Some(d) => d,
@@ -718,19 +705,13 @@ fn generate_ten_year_reminders(
 
     let today = Utc::now().date_naive();
     let mut reminders = Vec::new();
-    let is_landlord = agreement.user_role.as_deref() == Some("landlord");
 
     if let Some(reminder_6m) = ten_year_milestone.checked_sub_months(Months::new(6)) {
         if reminder_6m > today {
-            let title_key = if is_landlord {
-                "agreement.rent.ten_year.landlord_6_months_title"
-            } else {
-                "agreement.rent.ten_year.tenant_6_months_title"
-            };
             reminders.push(NewReminder {
                 agreement_id: agreement.id,
                 reminder_type: "ten_year_notice".to_string(),
-                title: t(language, title_key),
+                title: String::new(),
                 amount: None,
                 due_date: ten_year_milestone,
                 reminder_date: reminder_6m,
@@ -740,23 +721,10 @@ fn generate_ten_year_reminders(
 
     if let Some(reminder_4m) = ten_year_milestone.checked_sub_months(Months::new(4)) {
         if reminder_4m > today {
-            let notice_deadline = ten_year_milestone
-                .checked_sub_months(Months::new(3))
-                .unwrap_or(ten_year_milestone);
-            let title_key = if is_landlord {
-                "agreement.rent.ten_year.landlord_4_months_title"
-            } else {
-                "agreement.rent.ten_year.tenant_4_months_title"
-            };
-            let title = t_with_args(
-                language,
-                title_key,
-                &[&notice_deadline.format("%d.%m.%Y").to_string()],
-            );
             reminders.push(NewReminder {
                 agreement_id: agreement.id,
                 reminder_type: "ten_year_notice".to_string(),
-                title,
+                title: String::new(),
                 amount: None,
                 due_date: ten_year_milestone,
                 reminder_date: reminder_4m,
@@ -766,15 +734,10 @@ fn generate_ten_year_reminders(
 
     if let Some(reminder_3m) = ten_year_milestone.checked_sub_months(Months::new(3)) {
         if reminder_3m > today {
-            let title_key = if is_landlord {
-                "agreement.rent.ten_year.landlord_3_months_title"
-            } else {
-                "agreement.rent.ten_year.tenant_3_months_title"
-            };
             reminders.push(NewReminder {
                 agreement_id: agreement.id,
                 reminder_type: "ten_year_notice".to_string(),
-                title: t(language, title_key),
+                title: String::new(),
                 amount: None,
                 due_date: ten_year_milestone,
                 reminder_date: reminder_3m,
@@ -792,10 +755,10 @@ fn generate_ten_year_reminders(
 fn generate_five_year_reminders(
     pool: &DbPool,
     agreement: &Agreement,
-    draft: &RentDraft,
+    _draft: &RentDraft,
     start_date: Option<NaiveDate>,
     contract_duration: i32,
-    language: &str,
+    _language: &str,
 ) -> Result<(), DbError> {
     let start = match start_date {
         Some(d) => d,
@@ -825,27 +788,12 @@ fn generate_five_year_reminders(
             continue;
         }
 
-        let period_years = (5 * period).to_string();
-        let title = if draft.user_role.as_deref() == Some("landlord") {
-            t_with_args(
-                language,
-                "agreement.rent.five_year.landlord_title",
-                &[&period_years],
-            )
-        } else {
-            t_with_args(
-                language,
-                "agreement.rent.five_year.tenant_title",
-                &[&period_years],
-            )
-        };
-
         if let Some(reminder_6m) = five_year_milestone.checked_sub_months(Months::new(6)) {
             if reminder_6m > today {
                 reminders.push(NewReminder {
                     agreement_id: agreement.id,
                     reminder_type: "five_year_notice".to_string(),
-                    title: title.clone(),
+                    title: String::new(),
                     amount: None,
                     due_date: five_year_milestone,
                     reminder_date: reminder_6m,
@@ -858,7 +806,7 @@ fn generate_five_year_reminders(
                 reminders.push(NewReminder {
                     agreement_id: agreement.id,
                     reminder_type: "five_year_notice".to_string(),
-                    title: title.clone(),
+                    title: String::new(),
                     amount: None,
                     due_date: five_year_milestone,
                     reminder_date: reminder_3m,
@@ -868,15 +816,10 @@ fn generate_five_year_reminders(
 
         if let Some(reminder_31d) = five_year_milestone.checked_sub_days(chrono::Days::new(31)) {
             if reminder_31d > today {
-                let title_31d = t_with_args(
-                    language,
-                    "agreement.rent.five_year.notice_deadline_title",
-                    &[&period_years, "31"],
-                );
                 reminders.push(NewReminder {
                     agreement_id: agreement.id,
                     reminder_type: "five_year_notice".to_string(),
-                    title: title_31d,
+                    title: String::new(),
                     amount: None,
                     due_date: five_year_milestone,
                     reminder_date: reminder_31d,

@@ -15,7 +15,7 @@ use teloxide::types::CallbackQuery;
 use super::super::keyboards::{
     build_agreement_detail_keyboard, build_agreements_list_keyboard, build_delete_confirm_keyboard,
 };
-use super::super::utils::get_user_language;
+use super::super::utils::{generate_reminder_title, get_user_language};
 use super::handle_edit_callback;
 
 pub async fn handle_agreement_callback(
@@ -298,7 +298,7 @@ fn build_agreement_detail_view(
         if !yearly.is_empty() {
             parts.push(String::new());
             parts.push(t(language, "agreement.view.reminders_yearly_title"));
-            for line in group_yearly_reminders(&yearly, language) {
+            for line in group_yearly_reminders(&yearly, agreement, language) {
                 parts.push(line);
             }
         }
@@ -483,62 +483,60 @@ fn extract_base_title(title: &str) -> &str {
     title.lines().next().unwrap_or(title).trim()
 }
 
-fn group_yearly_reminders(reminders: &[&Reminder], language: &str) -> Vec<String> {
+fn group_yearly_reminders(
+    reminders: &[&Reminder],
+    agreement: &Agreement,
+    language: &str,
+) -> Vec<String> {
     if reminders.is_empty() {
         return Vec::new();
     }
 
-    let mut grouped_by_title: BTreeMap<&str, Vec<&Reminder>> = BTreeMap::new();
-    for reminder in reminders {
-        grouped_by_title
-            .entry(&reminder.title)
-            .or_default()
-            .push(reminder);
-    }
+    let mut due_dates: Vec<_> = reminders.iter().map(|r| r.due_date).collect();
+    due_dates.sort();
+    due_dates.dedup();
+
+    let Some(&first_date) = due_dates.first() else {
+        return Vec::new();
+    };
+    let Some(&last_date) = due_dates.last() else {
+        return Vec::new();
+    };
+
+    let Some(first_reminder) = reminders.first() else {
+        return Vec::new();
+    };
+    let title = generate_reminder_title(first_reminder, agreement, language);
+    let day_month = first_date.format("%d.%m").to_string();
+
+    let timing_parts: Vec<String> = reminders
+        .iter()
+        .filter(|r| r.due_date == first_date)
+        .map(|r| format_time_before(r.due_date, r.reminder_date, language))
+        .collect();
+
+    let timing_str = format_timing_with_count(&timing_parts, language);
 
     let mut lines = Vec::new();
 
-    for (title, group) in grouped_by_title {
-        let mut due_dates: Vec<_> = group.iter().map(|r| r.due_date).collect();
-        due_dates.sort();
-        due_dates.dedup();
-
-        let Some(&first_date) = due_dates.first() else {
-            continue;
-        };
-        let Some(&last_date) = due_dates.last() else {
-            continue;
-        };
-
-        let day_month = first_date.format("%d.%m").to_string();
-
-        let timing_parts: Vec<String> = group
-            .iter()
-            .filter(|r| r.due_date == first_date)
-            .map(|r| format_time_before(r.due_date, r.reminder_date, language))
-            .collect();
-
-        let timing_str = format_timing_with_count(&timing_parts, language);
-
-        lines.push(format!(
-            "  {} - \"{}\"",
-            t_with_args(language, "agreement.view.yearly_summary", &[&day_month]),
-            title
-        ));
-        lines.push(format!(
-            "  {}",
-            t_with_args(
-                language,
-                "agreement.view.first_last_dates",
-                &[
-                    &first_date.format("%d.%m.%Y").to_string(),
-                    &last_date.format("%d.%m.%Y").to_string()
-                ]
-            ),
-        ));
-        if !timing_str.is_empty() {
-            lines.push(format!("  {}", timing_str));
-        }
+    lines.push(format!(
+        "  {} - \"{}\"",
+        t_with_args(language, "agreement.view.yearly_summary", &[&day_month]),
+        title
+    ));
+    lines.push(format!(
+        "  {}",
+        t_with_args(
+            language,
+            "agreement.view.first_last_dates",
+            &[
+                &first_date.format("%d.%m.%Y").to_string(),
+                &last_date.format("%d.%m.%Y").to_string()
+            ]
+        ),
+    ));
+    if !timing_str.is_empty() {
+        lines.push(format!("  {}", timing_str));
     }
 
     lines
@@ -606,6 +604,7 @@ fn format_reminder_line_with_pre(
     pre_notifies: &[&notifine::models::Reminder],
     language: &str,
 ) -> String {
+    let title = generate_reminder_title(reminder, agreement, language);
     let amount_str = reminder
         .amount
         .as_ref()
@@ -632,7 +631,7 @@ fn format_reminder_line_with_pre(
     format!(
         "  {} - {}{}{}",
         reminder.reminder_date.format("%d.%m.%Y"),
-        reminder.title,
+        title,
         if amount_str.is_empty() {
             String::new()
         } else {

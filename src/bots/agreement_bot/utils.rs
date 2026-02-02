@@ -1,7 +1,10 @@
 use crate::bots::bot_service::TelegramMessage;
 use crate::observability::METRICS;
+use chrono::NaiveDate;
 use notifine::db::DbPool;
 use notifine::find_agreement_user_by_telegram_id;
+use notifine::i18n::{t, t_with_args};
+use notifine::models::{Agreement, Reminder};
 use teloxide::prelude::*;
 use teloxide::types::{InlineKeyboardMarkup, ParseMode};
 
@@ -111,6 +114,66 @@ pub async fn confirm_selection_and_send_next(
     send_message_with_keyboard(bot, chat_id, thread_id, next_message, next_keyboard).await?;
 
     Ok(())
+}
+
+pub fn generate_reminder_title(
+    reminder: &Reminder,
+    agreement: &Agreement,
+    language: &str,
+) -> String {
+    if !reminder.title.is_empty() {
+        return reminder.title.clone();
+    }
+
+    let is_landlord = agreement.user_role.as_deref() == Some("landlord");
+
+    match reminder.reminder_type.as_str() {
+        "due_day" | "pre_notify" => {
+            if is_landlord {
+                t(language, "agreement.rent.success.collection_title")
+            } else {
+                t(language, "agreement.rent.success.payment_title")
+            }
+        }
+        "yearly_increase" => {
+            if is_landlord {
+                t(language, "agreement.rent.yearly_increase.landlord_title")
+            } else {
+                t(language, "agreement.rent.yearly_increase.tenant_title")
+            }
+        }
+        "five_year_notice" => {
+            let years = calculate_years_since(agreement.start_date, reminder.due_date);
+            if is_landlord {
+                t_with_args(
+                    language,
+                    "agreement.rent.five_year.landlord_title",
+                    &[&years.to_string()],
+                )
+            } else {
+                t_with_args(
+                    language,
+                    "agreement.rent.five_year.tenant_title",
+                    &[&years.to_string()],
+                )
+            }
+        }
+        "ten_year_notice" => {
+            if is_landlord {
+                t(language, "agreement.rent.ten_year.landlord_6_months_title")
+            } else {
+                t(language, "agreement.rent.ten_year.tenant_6_months_title")
+            }
+        }
+        _ => reminder.title.clone(),
+    }
+}
+
+fn calculate_years_since(start_date: Option<NaiveDate>, due_date: NaiveDate) -> u32 {
+    match start_date {
+        Some(start) => due_date.years_since(start).unwrap_or(0),
+        None => 0,
+    }
 }
 
 #[cfg(test)]

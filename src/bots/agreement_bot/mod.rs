@@ -8,7 +8,7 @@ mod flows;
 mod handlers;
 mod keyboards;
 mod types;
-mod utils;
+pub mod utils;
 
 use handlers::{callback_handler, chat_member_handler, command_handler, message_handler, Command};
 

@@ -1,3 +1,4 @@
+use crate::bots::agreement_bot::utils::generate_reminder_title;
 use crate::observability::alerts::Severity;
 use crate::observability::{ALERTS, METRICS};
 use chrono::{NaiveDate, Timelike, Utc};
@@ -189,8 +190,9 @@ fn format_reminder_message(due_reminder: &DueReminderWithUserInfo, lang: &str) -
     let agreement = &due_reminder.agreement;
 
     let type_emoji = match reminder.reminder_type.as_str() {
-        "rent_payment" | "rent_collection" => "🏠",
+        "due_day" | "pre_notify" => "🏠",
         "yearly_increase" => "📈",
+        "five_year_notice" | "ten_year_notice" => "⚠️",
         _ => "📝",
     };
 
@@ -202,10 +204,11 @@ fn format_reminder_message(due_reminder: &DueReminderWithUserInfo, lang: &str) -
         &[encode_text(&agreement.title).as_ref()],
     );
 
+    let dynamic_title = generate_reminder_title(reminder, agreement, lang);
     let reminder_line = t_with_args(
         lang,
         "agreement.reminder.reminder_title",
-        &[encode_text(&reminder.title).as_ref()],
+        &[encode_text(&dynamic_title).as_ref()],
     );
 
     let due_date_line = t_with_args(

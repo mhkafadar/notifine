@@ -53,7 +53,6 @@ diesel::table! {
         has_monthly_reminder -> Bool,
         #[max_length = 20]
         reminder_timing -> Nullable<Varchar>,
-        reminder_days_before -> Nullable<Int4>,
         has_yearly_increase_reminder -> Bool,
         description -> Nullable<Text>,
         created_at -> Timestamptz,
